@@ -1,0 +1,550 @@
+{
+  "system_data": {
+
+    "project_types": [
+      {
+        "id": 56962,
+        "name": "🔍 Wartung",
+        "is_active": true,
+        "workflow_steps": [
+          { "id": 684129, "name": "🚩 Wartung fällig", "is_active": true },
+          { "id": 684130, "name": "✔️ Abgeschlossen", "is_active": true },
+          { "id": 684131, "name": "📂 Archiviert", "is_active": true },
+          { "id": 684132, "name": "📆 Terminiert", "is_active": true },
+          { "id": 684133, "name": "✅ Erledigt", "is_active": true },
+          { "id": 684134, "name": "💰 Rechnung", "is_active": true }
+        ]
+      },
+      {
+        "id": 56961,
+        "name": "🛠️ Service",
+        "is_active": true,
+        "workflow_steps": [
+          { "id": 684123, "name": "🆕 Offen", "is_active": true },
+          { "id": 684124, "name": "✔️ Abgeschlossen", "is_active": true },
+          { "id": 684125, "name": "📂 Archiviert", "is_active": true },
+          { "id": 684126, "name": "📅 Terminiert", "is_active": true },
+          { "id": 684127, "name": "✅ Erledigt", "is_active": true },
+          { "id": 684128, "name": "💰 Rechnung", "is_active": true }
+        ]
+      },
+      {
+        "id": 56960,
+        "name": "🧱 Projekte",
+        "is_active": true,
+        "workflow_steps": [
+          { "id": 684112, "name": "🆕 Neue Projekte", "is_active": true },
+          { "id": 684113, "name": "👀 Begehung / Aufmaß", "is_active": true },
+          { "id": 684114, "name": "✍🏼 Angebotserstellung", "is_active": true },
+          { "id": 684115, "name": "✉️ Angebot verschickt", "is_active": true },
+          { "id": 684116, "name": "✅ Auftrag bestätigt", "is_active": true },
+          { "id": 684117, "name": "📅 Montageplanung", "is_active": true },
+          { "id": 684118, "name": "⚙️ In Umsetzung", "is_active": true },
+          { "id": 684119, "name": "📄 Schlussrechnung", "is_active": true },
+          { "id": 684120, "name": "✔️ Abgeschlossen", "is_active": true },
+          { "id": 684121, "name": "📂 Archiviert", "is_active": true },
+          { "id": 684122, "name": "‼️ Reklamation", "is_active": true }
+        ]
+      }
+    ],
+
+    "measures": [
+      {
+        "id": 6464,
+        "name": "Projekt",
+        "short": "PRJ",
+        "skill_mapping": ["installation", "maintenance", "repair", "solar", "electrical", "heat_pump"]
+      }
+    ],
+
+    "partners": [
+      {
+        "id": 163178,
+        "user_id": 315139,
+        "first_name": "Cliford",
+        "last_name": "Nchotie",
+        "full_name": "Cliford Nchotie",
+        "technician_extension": {
+          "status": "active",
+          "skills": ["electrical", "solar", "heat_pump", "installation", "maintenance"],
+          "skill_level": "master",
+          "geographic_zone": {
+            "current_zone": "Berlin-Mitte",
+            "last_task_address": "Berliner Straße 42, 10115 Berlin",
+            "last_updated": "2025-08-01T09:00:00+00:00"
+          }
+        }
+      }
+    ],
+
+    "products": [
+      {
+        "product_id": "HAy3gTgoMAA",
+        "nr": "1000",
+        "name": "Artikel 1",
+        "base_price": 50.00,
+        "list_price": 0.00,
+        "sales_price": 50.00,
+        "vat_percent": 19.0,
+        "unit_type": "Stk",
+        "category": "",
+        "description": "Dies ist eine Beschreibung.",
+        "manufacturer": ""
+      },
+      {
+        "product_id": "HAzz7aj6wAA",
+        "nr": "2000",
+        "name": "Mock Artikel",
+        "base_price": 75.00,
+        "list_price": 90.00,
+        "sales_price": 90.00,
+        "vat_percent": 19.0,
+        "unit_type": "Stk",
+        "category": "Material",
+        "description": "Mock product for testing purposes",
+        "manufacturer": "Mock Manufacturer"
+      }
+    ],
+
+    "document_types": [
+      { "id": 1227203, "name": "Kalkulation",        "base_type": "calculation" },
+      { "id": 1227204, "name": "Auftragsbestätigung","base_type": "confirmation" },
+      { "id": 1227205, "name": "Lieferschein",       "base_type": "delivery_note" },
+      { "id": 1227206, "name": "Arbeitsbericht",     "base_type": "delivery_note" },
+      { "id": 1227207, "name": "Mahnung",            "base_type": "dunning" },
+      { "id": 1227208, "name": "Allgemein",          "base_type": "generic" },
+      { "id": 1227209, "name": "Baustellenbericht",  "base_type": "information" },
+      { "id": 1227210, "name": "Rechnung",           "base_type": "invoice" },
+      { "id": 1227211, "name": "Rechnung §13b",      "base_type": "invoice" },
+      { "id": 1227212, "name": "Gutschrift",         "base_type": "invoice" },
+      { "id": 1227214, "name": "Brief",              "base_type": "letter" },
+      { "id": 1227215, "name": "Aufmaßdokument",     "base_type": "measurement" },
+      { "id": 1227216, "name": "Angebot",            "base_type": "offer" },
+      { "id": 1227217, "name": "Bestellschein",      "base_type": "order_form" },
+      { "id": 1227218, "name": "Reparaturauftrag",   "base_type": "repair" },
+      { "id": 1227219, "name": "Wartungsauftrag",    "base_type": "repair" },
+      { "id": 1227220, "name": "Stornorechnung",     "base_type": "reversal_invoice" }
+    ],
+
+    "calendar_categories": [
+      { "id": 419149, "name": "Umsetzung" },
+      { "id": 419150, "name": "Vor-Ort-Termin" },
+      { "id": 419151, "name": "Schlechtwetter" },
+      { "id": 419152, "name": "Büro" },
+      { "id": 419153, "name": "Besprechung" },
+      { "id": 419154, "name": "Schule" }
+    ],
+
+    "contacts": [
+      {
+        "id": 6803533,
+        "first_name": "John",
+        "last_name": "Doe",
+        "full_name": "John Doe",
+        "email": "john.doe@example.com",
+        "phone_home": "+49 30 123456",
+        "phone_mobile": "+49 170 9876543",
+        "category": "customer",
+        "type": "private",
+        "address": {
+          "street": "Berliner Straße 42",
+          "zipcode": "10115",
+          "city": "Berlin",
+          "country_id": 1
+        }
+      },
+      {
+        "id": 6803553,
+        "first_name": "Jane",
+        "last_name": "Smith",
+        "full_name": "Jane Smith",
+        "email": "jane.smith@example.com",
+        "phone_home": "+49 30 987654",
+        "phone_mobile": "+49 171 1234567",
+        "category": "customer",
+        "type": "private",
+        "address": {
+          "street": "Mönckebergstraße 7",
+          "zipcode": "20095",
+          "city": "Hamburg",
+          "country_id": 1
+        }
+      }
+    ],
+
+    "projects": [
+      {
+        "id": 10050014,
+        "name": "Projekt – John Doe",
+        "project_nr": "10050014",
+        "type_id": 56960,
+        "type_name": "🧱 Projekte",
+        "step_id": 684112,
+        "step_name": "🆕 Neue Projekte",
+        "measure_id": 6464,
+        "measure_name": "Projekt",
+        "partner_id": 163178,
+        "partner_name": "Cliford Nchotie",
+        "customer_id": 6803533,
+        "customer_name": "John Doe",
+        "address": {
+          "street": "Berliner Straße 42",
+          "zipcode": "10115",
+          "city": "Berlin"
+        },
+        "task": {
+          "id": 1678518,
+          "title": "Follow up with John Doe",
+          "due_date": "2025-08-01T00:00:00+00:00",
+          "target_user_id": 315139,
+          "business_value": "HIGH",
+          "is_flexible": false
+        },
+        "logbook_entry": {
+          "id": 108012644,
+          "custom_text": "Project created for John Doe with full details",
+          "created": "2025-07-01T08:00:00+00:00"
+        },
+        "calendar_event": {
+          "id": 5107633,
+          "title": "Initial Site Visit - John Doe",
+          "start": "2025-08-01T09:00:00+00:00",
+          "end": "2025-08-01T10:00:00+00:00",
+          "category_id": 419150,
+          "category_name": "Vor-Ort-Termin",
+          "partner_ids": [163178]
+        },
+        "document": {
+          "id": 17487142,
+          "type_id": 1227216,
+          "type_name": "Angebot",
+          "published": true,
+          "url": "https://login.hero-software.de/files/document/offer/yppycpfewggccsw0.pdf",
+          "line_items": [
+            {
+              "name": "Installation Service",
+              "description": "Full installation service",
+              "quantity": 1.0,
+              "unit_type": "pauschal",
+              "net_price": 1500.00,
+              "vat_percent": 19.0
+            },
+            {
+              "name": "Material Supply",
+              "description": "Supply of materials",
+              "quantity": 10.0,
+              "unit_type": "Stk",
+              "net_price": 250.00,
+              "vat_percent": 19.0
+            }
+          ]
+        }
+      },
+      {
+        "id": 10050048,
+        "name": "Projekt – Jane Smith",
+        "project_nr": "10050048",
+        "type_id": 56960,
+        "type_name": "🧱 Projekte",
+        "step_id": 684112,
+        "step_name": "🆕 Neue Projekte",
+        "measure_id": 6464,
+        "measure_name": "Projekt",
+        "partner_id": 163178,
+        "partner_name": "Cliford Nchotie",
+        "customer_id": 6803553,
+        "customer_name": "Jane Smith",
+        "address": {
+          "street": "Mönckebergstraße 7",
+          "zipcode": "20095",
+          "city": "Hamburg"
+        },
+        "task": {
+          "id": 1678532,
+          "title": "Follow up - Projekte Project",
+          "due_date": "2025-08-15T00:00:00+00:00",
+          "target_user_id": 315139,
+          "business_value": "HIGH",
+          "is_flexible": true
+        },
+        "logbook_entry": {
+          "id": 108013159,
+          "custom_text": "Project created for Jane Smith - Projekte type",
+          "created": "2025-07-01T08:30:00+00:00"
+        },
+        "calendar_event": {
+          "id": 5107666,
+          "title": "Initial Site Visit - Jane Smith",
+          "start": "2025-08-15T09:00:00+00:00",
+          "end": "2025-08-15T10:00:00+00:00",
+          "category_id": 419150,
+          "category_name": "Vor-Ort-Termin",
+          "partner_ids": [163178]
+        },
+        "document": {
+          "id": 17487238,
+          "type_id": 1227216,
+          "type_name": "Angebot",
+          "published": true,
+          "url": "https://login.hero-software.de/files/document/offer/tn71dmk0liscwokc.pdf",
+          "line_items": [
+            {
+              "name": "Installation Service",
+              "description": "Full installation service",
+              "quantity": 1.0,
+              "unit_type": "pauschal",
+              "net_price": 1500.00,
+              "vat_percent": 19.0
+            }
+          ]
+        }
+      },
+      {
+        "id": 10050049,
+        "name": "Service – Jane Smith",
+        "project_nr": "10050049",
+        "type_id": 56961,
+        "type_name": "🛠️ Service",
+        "step_id": 684123,
+        "step_name": "🆕 Offen",
+        "measure_id": 6464,
+        "measure_name": "Projekt",
+        "partner_id": 163178,
+        "partner_name": "Cliford Nchotie",
+        "customer_id": 6803553,
+        "customer_name": "Jane Smith",
+        "address": {
+          "street": "Mönckebergstraße 7",
+          "zipcode": "20095",
+          "city": "Hamburg"
+        },
+        "task": {
+          "id": 1678533,
+          "title": "Service Check - Jane Smith",
+          "due_date": "2025-08-16T00:00:00+00:00",
+          "target_user_id": 315139,
+          "business_value": "MED",
+          "is_flexible": true
+        },
+        "logbook_entry": {
+          "id": 108013160,
+          "custom_text": "Service project created for Jane Smith",
+          "created": "2025-07-01T09:00:00+00:00"
+        },
+        "calendar_event": {
+          "id": 5107667,
+          "title": "Service Appointment - Jane Smith",
+          "start": "2025-08-16T10:00:00+00:00",
+          "end": "2025-08-16T11:00:00+00:00",
+          "category_id": 419153,
+          "category_name": "Besprechung",
+          "partner_ids": [163178]
+        },
+        "document": {
+          "id": 17487239,
+          "type_id": 1227218,
+          "type_name": "Reparaturauftrag",
+          "published": true,
+          "url": "https://login.hero-software.de/files/document/repair/27wvf8rsinggcow0g.pdf",
+          "line_items": [
+            {
+              "name": "Service Labour",
+              "description": "On-site service labour",
+              "quantity": 2.0,
+              "unit_type": "Std",
+              "net_price": 95.00,
+              "vat_percent": 19.0
+            }
+          ]
+        }
+      },
+      {
+        "id": 10050050,
+        "name": "Wartung – Jane Smith",
+        "project_nr": "10050050",
+        "type_id": 56962,
+        "type_name": "🔍 Wartung",
+        "step_id": 684129,
+        "step_name": "🚩 Wartung fällig",
+        "measure_id": 6464,
+        "measure_name": "Projekt",
+        "partner_id": 163178,
+        "partner_name": "Cliford Nchotie",
+        "customer_id": 6803553,
+        "customer_name": "Jane Smith",
+        "address": {
+          "street": "Mönckebergstraße 7",
+          "zipcode": "20095",
+          "city": "Hamburg"
+        },
+        "task": {
+          "id": 1678534,
+          "title": "Wartung Fällig - Jane Smith",
+          "due_date": "2025-08-17T00:00:00+00:00",
+          "target_user_id": 315139,
+          "business_value": "LOW",
+          "is_flexible": false
+        },
+        "logbook_entry": {
+          "id": 108013162,
+          "custom_text": "Wartung project created for Jane Smith",
+          "created": "2025-07-01T09:30:00+00:00"
+        },
+        "calendar_event": {
+          "id": 5107668,
+          "title": "Wartungstermin - Jane Smith",
+          "start": "2025-08-17T11:00:00+00:00",
+          "end": "2025-08-17T12:00:00+00:00",
+          "category_id": 419150,
+          "category_name": "Vor-Ort-Termin",
+          "partner_ids": [163178]
+        },
+        "document": {
+          "id": 17487242,
+          "type_id": 1227219,
+          "type_name": "Wartungsauftrag",
+          "published": true,
+          "url": "https://login.hero-software.de/files/document/repair/1djedfztvjfo0cgkg.pdf",
+          "line_items": [
+            {
+              "name": "Wartung Pauschal",
+              "description": "Annual maintenance check",
+              "quantity": 1.0,
+              "unit_type": "pauschal",
+              "net_price": 199.00,
+              "vat_percent": 19.0
+            }
+          ]
+        }
+      }
+    ],
+
+    "custom_data_layer": {
+
+      "tasks_extension": {
+        "business_value_schema": {
+          "type": "enum",
+          "values": ["HIGH", "MED", "LOW"],
+          "source": "UI input or AI computed",
+          "mapping": [
+            { "task_id": 1678518, "business_value": "HIGH" },
+            { "task_id": 1678532, "business_value": "HIGH" },
+            { "task_id": 1678533, "business_value": "MED" },
+            { "task_id": 1678534, "business_value": "LOW" }
+          ]
+        },
+        "is_flexible_schema": {
+          "type": "boolean",
+          "source": "Custom flag in secondary DB",
+          "mapping": [
+            { "task_id": 1678518, "is_flexible": false },
+            { "task_id": 1678532, "is_flexible": true },
+            { "task_id": 1678533, "is_flexible": true },
+            { "task_id": 1678534, "is_flexible": false }
+          ]
+        },
+        "required_skills_schema": {
+          "type": "array",
+          "source": "Mapped from measure + custom patch",
+          "mapping": [
+            { "task_id": 1678518, "required_skills": ["installation", "electrical"] },
+            { "task_id": 1678532, "required_skills": ["installation", "solar"] },
+            { "task_id": 1678533, "required_skills": ["repair", "electrical"] },
+            { "task_id": 1678534, "required_skills": ["maintenance", "heat_pump"] }
+          ]
+        }
+      },
+
+      "technicians_extension": {
+        "status_schema": {
+          "type": "enum",
+          "values": ["active", "sick", "on_leave", "busy"],
+          "source": "External dispatcher state server",
+          "mapping": [
+            {
+              "user_id": 315139,
+              "partner_id": 163178,
+              "name": "Cliford Nchotie",
+              "status": "active",
+              "status_last_updated": "2025-08-01T07:00:00+00:00"
+            }
+          ]
+        },
+        "skills_schema": {
+          "type": "array",
+          "source": "Internal skills mapping DB",
+          "mapping": [
+            {
+              "user_id": 315139,
+              "partner_id": 163178,
+              "name": "Cliford Nchotie",
+              "skill_level": "master",
+              "skills": ["electrical", "solar", "heat_pump", "installation", "maintenance", "repair"]
+            }
+          ]
+        },
+        "geographic_zone_schema": {
+          "type": "string",
+          "source": "Derived from last completed task address",
+          "mapping": [
+            {
+              "user_id": 315139,
+              "partner_id": 163178,
+              "name": "Cliford Nchotie",
+              "current_zone": "Berlin-Mitte",
+              "last_task_address": "Berliner Straße 42, 10115 Berlin",
+              "last_updated": "2025-08-01T09:00:00+00:00"
+            }
+          ]
+        }
+      },
+
+      "trigger_events": {
+        "schema": {
+          "source": "Custom UI Chaos Button",
+          "event_types": ["technician_sick", "task_cancelled", "new_urgent_task", "delay", "weather_block"]
+        },
+        "mock_events": [
+          {
+            "event_id": "EVT-001",
+            "event_type": "technician_sick",
+            "target_id": 315139,
+            "target_type": "technician",
+            "message": "Cliford Nchotie called in sick. All tasks for 2025-08-01 need re-dispatch.",
+            "triggered_at": "2025-08-01T07:15:00+00:00",
+            "affected_tasks": [1678518, 1678532]
+          },
+          {
+            "event_id": "EVT-002",
+            "event_type": "new_urgent_task",
+            "target_id": 10050049,
+            "target_type": "project",
+            "message": "Emergency service call raised for Jane Smith. Immediate dispatch required.",
+            "triggered_at": "2025-08-16T08:00:00+00:00",
+            "affected_tasks": [1678533]
+          },
+          {
+            "event_id": "EVT-003",
+            "event_type": "delay",
+            "target_id": 1678534,
+            "target_type": "task",
+            "message": "Wartung appointment delayed by 2 hours due to traffic.",
+            "triggered_at": "2025-08-17T09:00:00+00:00",
+            "affected_tasks": [1678534]
+          },
+          {
+            "event_id": "EVT-004",
+            "event_type": "weather_block",
+            "target_id": 5107668,
+            "target_type": "calendar_event",
+            "message": "Heavy rain forecast. Outdoor Wartung appointment may need rescheduling.",
+            "triggered_at": "2025-08-17T06:00:00+00:00",
+            "affected_tasks": [1678534]
+          }
+        ]
+      }
+
+    }
+
+  }
+}
