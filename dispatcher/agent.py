@@ -1,57 +1,52 @@
 import os
 import json
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from openai import OpenAI
 
 # ---------------------------------------------------------
-# Define the Output Contract (What we return to Data Layer)
+# Output Contract: Sent back to UI/Data Layer
 # ---------------------------------------------------------
-class AssignedTask(BaseModel):
+class ReassignedTask(BaseModel):
     task_id: str
-    assigned_to: str # worker_id
-    scheduled_time: str # e.g. "09:00-11:00"
-    reasoning: str # Why the AI made this choice
+    new_technician_id: Optional[str] = Field(description="The ID of the new tech, or null if unassigned")
+    scheduled_time: str
+    human_explanation: str = Field(description="A plain-english justification for why this move happened")
+    is_rescheduled_to_tomorrow: bool = Field(description="True if dropping low-priority tasks off today's schedule")
 
 class DispatchResult(BaseModel):
-    assignments: List[AssignedTask]
-    unassigned_tasks: List[str] # Tasks that couldn't fit
-    summary: str # High-level summary for the UI team
+    assignments: List[ReassignedTask]
+    confidence_score_percent: int = Field(description="0-100 score of how confident AI is in this plan")
+    needs_human_review: bool = Field(description="True if confidence is low, or high financial assets are affected")
+    executive_summary: str = Field(description="One paragraph summarizing the overall strategy chosen")
 
 # ---------------------------------------------------------
-# Dispatcher Logic
+# Dispatcher Logic Engine
 # ---------------------------------------------------------
-def run_dispatcher(current_state_json: str, chaos_trigger: str) -> str:
-    """
-    Takes the JSON from the data layer and a trigger message, 
-    returns a JSON string of assignments.
-    """
-    
-    # In a real setup, we'd check os.getenv("OPENAI_API_KEY")
+def run_dispatcher(payload_json: str) -> str:
+    """Takes the exact DispatcherInputPayload format and returns a DispatchResult format."""
     api_key = os.getenv("OPENAI_API_KEY")
     client = OpenAI(api_key=api_key)
     
     system_prompt = """
-    You are an expert master dispatcher for a trades business. 
-    Your goal is to optimize the daily schedule. 
-    Assign tasks to available technicians based on their skills and the required time slots.
-    If constraints prevent a task from being assigned today, put its ID in the unassigned_tasks list.
+    You are an expert dispatcher for a trades business executing the High-Stakes Chaos protocol.
+    Your goals:
+    1. Minimize financial impact. HIGH business value tasks must be saved at all costs.
+    2. Geographic clustering. Prefer technicians in the same zone.
+    3. Skill matching. You must not send unqualified technicians. 
+    4. Trust & Safety. Explain every change clearly. If a low-value task cannot be completed, flag it to be rescheduled to tomorrow.
     """
     
     user_prompt = f"""
-    Here is the current state of resources and tasks:
-    {current_state_json}
+    Here is the incoming JSON payload from the data layer containing the chaos trigger, tech status, and tasks:
+    {payload_json}
     
-    The following event has occurred, requiring re-dispatching:
-    {chaos_trigger}
-    
-    Please provide the new optimal schedule.
+    Calculate the optimal reroute and generate the structured JSON output.
     """
 
     try:
-        # We use strict Pydantic parsing (Beta feature in OpenAI library) to guarantee our JSON response format
         response = client.beta.chat.completions.parse(
-            model="gpt-4o-2024-08-06", # Ensure a model that natively supports output parsing
+            model="gpt-4o-2024-08-06",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
@@ -59,41 +54,57 @@ def run_dispatcher(current_state_json: str, chaos_trigger: str) -> str:
             response_format=DispatchResult
         )
 
-        dispatch_output = response.choices[0].message.parsed
-        return dispatch_output.json()
+        return response.choices[0].message.parsed.json()
 
     except Exception as e:
         print(f"Dispatcher failed: {e}")
         return json.dumps({"error": str(e)})
 
-
 # ---------------------------------------------------------
-# Local Testing / Mocks (Assuming Data layer isn't ready)
+# Local Scenario Testing (The High-Stakes Breakdown MVP)
 # ---------------------------------------------------------
 if __name__ == "__main__":
     
-    # Mock Data Layer Input
-    mock_state = {
+    # Matching the exact schema defined in data_schema.json + scenario.md
+    mock_payload = {
+        "trigger_event": {
+            "event_type": "worker_breakdown",
+            "target_id": "TECH_A",
+            "message": "URGENT: Tech A's van broke down. Out for the rest of the day."
+        },
         "technicians": [
-            {"id": "TECH_01", "name": "Mario", "skills": ["plumbing"], "status": "available"},
-            {"id": "TECH_02", "name": "Luigi", "skills": ["electrical", "plumbing"], "status": "available"}
+            {
+                "id": "TECH_A", "name": "Master Plumber Alice", "status": "unavailable",
+                "skills": ["plumbing", "master"], "geographic_zone": "Zone_North"
+            },
+            {
+                "id": "TECH_B", "name": "Junior Plumber Bob", "status": "active",
+                "skills": ["plumbing"], "geographic_zone": "Zone_North"
+            }
         ],
-        "tasks": [
-            {"id": "TASK_101", "description": "Install new sink", "required_skill": "plumbing", "duration_hours": 2},
-            {"id": "TASK_102", "description": "Rewire kitchen", "required_skill": "electrical", "duration_hours": 4}
+        "uncompleted_tasks": [
+            {
+                "id": "TASK_COMMERCIAL", "description": "High-rise pipe burst", "customer_id": "CUST_01",
+                "required_skills": ["plumbing"], "business_value": "HIGH", "is_flexible": False, 
+                "geographic_zone": "Zone_North", "currently_assigned_to": "TECH_A"
+            },
+            {
+                "id": "TASK_RESIDENTIAL_1", "description": "Leaky faucet", "customer_id": "CUST_02",
+                "required_skills": ["plumbing"], "business_value": "LOW", "is_flexible": True,
+                "geographic_zone": "Zone_North", "currently_assigned_to": "TECH_A"
+            },
+            {
+                 "id": "TASK_BOB_MAINTENANCE", "description": "Routine check", "customer_id": "CUST_03",
+                 "required_skills": ["plumbing"], "business_value": "LOW", "is_flexible": True,
+                 "geographic_zone": "Zone_North", "currently_assigned_to": "TECH_B"
+            }
         ]
     }
     
-    # Mock Trigger from UI
-    mock_trigger = "URGENT: TECH_01 just called in sick. Re-route his jobs."
-    
-    print("Running Dispatcher Engine...")
-    print(f"Trigger Context: {mock_trigger}\n")
-    
-    # ONLY RUN if you have set OPENAI_API_KEY in your env
-    if os.getenv("OPENAI_API_KEY"):
-        result_json = run_dispatcher(json.dumps(mock_state), mock_trigger)
-        print("Dispatcher Result JSON:")
-        print(json.dumps(json.loads(result_json), indent=2))
+    if os.getenv("OPENAI_API_KEY") and os.getenv("OPENAI_API_KEY") != "your_key_here":
+        print("Running High-Stakes Chaos Protocol with OpenAI Engine...\n")
+        result = run_dispatcher(json.dumps(mock_payload))
+        print("Final Output JSON (To be sent back to UI/HERO):")
+        print(json.dumps(json.loads(result), indent=2))
     else:
-        print("Warning: OPENAI_API_KEY not set. Dispatcher simulation bypassed. Please set key to test real LLM reasoning.")
+        print("Skipping run. OPENAI_API_KEY environment variable is not configured.")
