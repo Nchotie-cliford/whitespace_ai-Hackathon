@@ -15,11 +15,13 @@ app.add_middleware(
 )
 
 @app.get("/api/dispatch")
-def execute_dispatcher():
+def execute_dispatcher(taskId: str = None):
     """Reads the JSON file, calculates the new schedule, and returns it to the UI."""
     try:
+        if not taskId:
+            return {"error": "taskId query parameter is required"}
         # Calls the function we built in agent.py which parses HERO_data.json
-        result_json = run_dispatcher_with_mock("data/HERO_data.json")
+        result_json = run_dispatcher_with_mock("data/HERO_data.json", taskId)
         return json.loads(result_json)
     except Exception as e:
         return {"error": str(e)}

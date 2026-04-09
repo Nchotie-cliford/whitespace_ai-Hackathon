@@ -12,24 +12,15 @@ from google.genai import types
 # ---------------------------------------------------------
 # Output Contract: Sent back to UI/Data Layer
 # ---------------------------------------------------------
-class ReassignedTask(BaseModel):
-    task_id: str
-    new_technician_id: Optional[str] = Field(description="The ID of the new tech, or null if unassigned")
-    scheduled_time: str
-    human_explanation: str = Field(description="A plain-english justification for why this move happened")
-    is_rescheduled_to_tomorrow: bool = Field(description="True if dropping low-priority tasks off today's schedule")
-
-class DispatchResult(BaseModel):
-    assignments: List[ReassignedTask]
-    confidence_score_percent: int = Field(description="0-100 score of how confident AI is in this plan")
-    needs_human_review: bool = Field(description="True if confidence is low, or high financial assets are affected")
-    executive_summary: str = Field(description="One paragraph summarizing the overall strategy chosen")
+class SingleTaskDispatchResult(BaseModel):
+    changed_user_id: Optional[str] = Field(description="The ID of the new technician, or null if unassigned")
+    explanation: str = Field(description="A plain-english justification for why this move happened")
 
 # ---------------------------------------------------------
 # Dispatcher Logic Engine
 # ---------------------------------------------------------
-def run_dispatcher(payload_json: str) -> str:
-    """Takes the exact DispatcherInputPayload format and returns a DispatchResult format."""
+def run_dispatcher(payload_json: str, task_id: str) -> str:
+    """Takes the exact DispatcherInputPayload format and returns a SingleTaskDispatchResult format."""
     
     # Intialize Google GenAI client (Retrieves GEMINI_API_KEY from environment)
     api_key = os.getenv("GEMINI_API_KEY")
@@ -48,7 +39,8 @@ def run_dispatcher(payload_json: str) -> str:
     Here is the incoming JSON payload from the data layer containing the chaos trigger, tech status, and tasks:
     {payload_json}
     
-    Calculate the optimal reroute and generate the structured JSON output.
+    Calculate the optimal reroute specifically for the task with ID: {task_id}.
+    Generate the structured JSON output with the assigned changed_user_id and a clear explanation.
     """
 
     try:
@@ -58,7 +50,7 @@ def run_dispatcher(payload_json: str) -> str:
             contents=[system_prompt, user_prompt],
              config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                response_schema=DispatchResult,
+                response_schema=SingleTaskDispatchResult,
                 temperature=0.1 # Keep logic extremely rigid 
             )
         )
@@ -143,9 +135,9 @@ def build_payload_from_hero_data(filepath: str) -> dict:
         "uncompleted_tasks": uncompleted_tasks
     }
 
-def run_dispatcher_with_mock(filepath: str) -> str:
+def run_dispatcher_with_mock(filepath: str, task_id: str) -> str:
     payload = build_payload_from_hero_data(filepath)
-    return run_dispatcher(json.dumps(payload))
+    return run_dispatcher(json.dumps(payload), task_id)
 
 # ---------------------------------------------------------
 # Local Scenario Testing (The High-Stakes Breakdown MVP)
@@ -154,7 +146,7 @@ if __name__ == "__main__":
     
     if os.getenv("GEMINI_API_KEY") and os.getenv("GEMINI_API_KEY") != "your_key_here":
         print("Parsing 'data/HERO_data.json' and running Dispatcher...")
-        result = run_dispatcher_with_mock("data/HERO_data.json")
+        result = run_dispatcher_with_mock("data/HERO_data.json", "1678518")
         print("\nFinal Output JSON (To be sent back to UI/HERO):")
         print(result) # Result is already a validated JSON string
     else:
