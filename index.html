@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HERO Data Architect - Chaos Dashboard</title>
+    <!-- SEO meta tags -->
+    <meta name="description" content="Dashboard visualizing project matches and tasks in the HERO Chaos Environment.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app" class="dashboard-container">
+        <header class="top-nav">
+            <div class="logo">
+                <h1>HERO <span>Chaos Dashboard</span></h1>
+            </div>
+            <div class="status-indicator">
+                <span class="status-dot pulsing"></span> Live Environment
+            </div>
+        </header>
+        
+        <main class="dashboard-grid">
+            <!-- Sidebar: Stats / Triggers -->
+            <aside class="dashboard-sidebar glass-panel">
+                <h2>Chaos Triggers</h2>
+                <div class="trigger-list" id="triggerList">
+                    <button class="btn trigger-btn" id="btnSickUser">Trigger: Sick User</button>
+                    <button class="btn trigger-btn" id="btnOverrun">Trigger: Task Overrun</button>
+                    <button class="btn trigger-btn" id="btnFlood">Trigger: Emergency Flood</button>
+                </div>
+            </aside>
+            
+            <!-- Main Content Area: Tasks / Projects -->
+            <section class="main-content">
+                <div class="header-split">
+                    <h2>Active Workload <span id="taskCount">(0)</span></h2>
+                </div>
+                <div class="task-grid" id="taskContainer">
+                    <!-- Tasks will be injected here via app.js -->
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <!-- AI Dispatch Modal -->
+    <div id="aiModalOverlay" class="modal-overlay hidden">
+        <div class="modal-panel glass-panel">
+            <div class="modal-header">
+                <h3>AI Dispatch Engine</h3>
+                <button id="closeModalBtn" class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="aiLoading" class="ai-state active">
+                    <div class="spinner"></div>
+                    <p>Consulting AI Engine for optimal route...</p>
+                </div>
+                <div id="aiResolution" class="ai-state hidden">
+                    <p>AI Suggestion found for Task <strong id="modalTaskId"></strong>:</p>
+                    <div class="suggestion-card">
+                        <div class="s-row"><span>New Technician:</span> <strong id="modalTech" class="highlight-tech"></strong></div>
+                        <div class="s-row"><span>New Timeline:</span> <strong id="modalTime"></strong></div>
+                    </div>
+                </div>
+            </div>
+            <div id="aiActions" class="modal-actions hidden">
+                <button class="btn btn-outline" id="btnReject">Reject (Find alternatives)</button>
+                <button class="btn btn-primary" id="btnApprove">Approve & Assign</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
