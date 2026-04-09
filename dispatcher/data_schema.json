@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DispatcherInputPayload",
+  "description": "The exact JSON payload the Data Layer must send to the Dispatcher Engine.",
+  "type": "object",
+  "properties": {
+    "trigger_event": {
+      "type": "object",
+      "description": "The chaos event that requires the dispatcher to run.",
+      "properties": {
+        "event_type": { "type": "string", "enum": ["worker_breakdown", "emergency_job", "task_overrun"] },
+        "target_id": { "type": "string", "description": "The ID of the worker or task affected" },
+        "message": { "type": "string", "description": "Human readable context (e.g., 'Van broke down')" }
+      },
+      "required": ["event_type", "target_id"]
+    },
+    "technicians": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "status": { "type": "string", "enum": ["active", "unavailable", "busy"] },
+          "skills": { 
+            "type": "array", 
+            "items": { "type": "string" } 
+          },
+          "geographic_zone": { "type": "string", "description": "e.g., 'North_City' or lat/long" }
+        },
+        "required": ["id", "status", "skills", "geographic_zone"]
+      }
+    },
+    "uncompleted_tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "customer_id": { "type": "string" },
+          "description": { "type": "string" },
+          "required_skills": { 
+            "type": "array", 
+            "items": { "type": "string" } 
+          },
+          "business_value": { "type": "string", "enum": ["HIGH", "MEDIUM", "LOW"] },
+          "is_flexible": { "type": "boolean", "description": "True if the job can be pushed to tomorrow" },
+          "scheduled_time": { "type": "string", "description": "e.g., '09:00-11:00'" },
+          "geographic_zone": { "type": "string" },
+          "currently_assigned_to": { "type": ["string", "null"], "description": "Tech ID, if assigned" }
+        },
+        "required": ["id", "required_skills", "business_value", "is_flexible", "geographic_zone"]
+      }
+    }
+  },
+  "required": ["trigger_event", "technicians", "uncompleted_tasks"]
+}
