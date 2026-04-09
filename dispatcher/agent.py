@@ -12,9 +12,18 @@ from google.genai import types
 # ---------------------------------------------------------
 # Output Contract: Sent back to UI/Data Layer
 # ---------------------------------------------------------
-class SingleTaskDispatchResult(BaseModel):
-    changed_user_id: Optional[str] = Field(description="The ID of the new technician, or null if unassigned")
-    explanation: str = Field(description="A plain-english justification for why this move happened")
+class ReassignedTask(BaseModel):
+    task_id: str
+    new_technician_id: Optional[str] = Field(description="The ID of the new tech, or null if unassigned")
+    scheduled_time: str
+    human_explanation: str = Field(description="A plain-english justification for why this move happened")
+    is_rescheduled_to_tomorrow: bool = Field(description="True if dropping low-priority tasks off today's schedule")
+
+class DispatchResult(BaseModel):
+    assignments: List[ReassignedTask]
+    confidence_score_percent: int = Field(description="0-100 score of how confident AI is in this plan")
+    needs_human_review: bool = Field(description="True if confidence is low, or high financial assets are affected")
+    executive_summary: str = Field(description="One paragraph summarizing the overall strategy chosen")
 
 # ---------------------------------------------------------
 # Dispatcher Logic Engine
@@ -50,7 +59,7 @@ def run_dispatcher(payload_json: str, task_id: str) -> str:
             contents=[system_prompt, user_prompt],
              config=types.GenerateContentConfig(
                 response_mime_type="application/json",
-                response_schema=SingleTaskDispatchResult,
+                response_schema=DispatchResult,
                 temperature=0.1 # Keep logic extremely rigid 
             )
         )
@@ -69,68 +78,54 @@ def build_payload_from_hero_data(filepath: str) -> dict:
     with open(filepath, 'r') as f:
         raw_data = json.load(f)["system_data"]
         
-    custom = raw_data["custom_data_layer"]
+    custom = raw_data.get("custom_data_layer", {})
     
-    # 1. Grab specifically the sick technician event for the MVP
-    trigger = custom["trigger_events"]["mock_events"][0]
-    payload_trigger = {
-        "event_type": "worker_breakdown",
-        "target_id": str(trigger["target_id"]),
-        "message": trigger["message"]
-    }
-    
-    # 2. Build Technicians
+    # 2. Build Technicians driven strictly by HERO_data.json logic (No hardcoded Bobs)
     technicians = []
-    # Merge basic user data with custom extensions
+    # Merge basic user data with custom extensions safely
     tech_extensions = {
-        ext["user_id"]: ext for ext in custom["technicians_extension"]["skills_schema"]["mapping"]
+        ext["user_id"]: ext for ext in custom.get("technicians_extension", {}).get("skills_schema", {}).get("mapping", [])
     }
     status_ext = {
-        ext["user_id"]: ext for ext in custom["technicians_extension"]["status_schema"]["mapping"]
+        ext["user_id"]: ext for ext in custom.get("technicians_extension", {}).get("status_schema", {}).get("mapping", [])
     }
     zone_ext = {
-        ext["user_id"]: ext for ext in custom["technicians_extension"]["geographic_zone_schema"]["mapping"]
+        ext["user_id"]: ext for ext in custom.get("technicians_extension", {}).get("geographic_zone_schema", {}).get("mapping", [])
     }
     
-    for partner in raw_data["partners"]:
+    for partner in raw_data.get("partners", []):
         uid = partner["user_id"]
-        # Add tech_B purely to have capacity to re-assign
         technicians.append({
             "id": str(uid),
-            "name": partner["full_name"],
+            "name": partner.get("full_name", str(uid)),
             "status": status_ext.get(uid, {}).get("status", "unavailable"),
             "skills": tech_extensions.get(uid, {}).get("skills", []),
             "geographic_zone": zone_ext.get(uid, {}).get("current_zone", "Unknown")
         })
-    # Hardcode a "Tech B" based on our scenario, as only Cliford is in partners
-    technicians.append({
-        "id": "315140", "name": "Junior Plumber Bob", "status": "active",
-        "skills": ["plumbing", "electrical"], "geographic_zone": "Berlin-Mitte"
-    })
     
-    # 3. Build Uncompleted Tasks
+    # 3. Build Uncompleted Tasks driven strictly by HERO_data.json
     uncompleted_tasks = []
-    biz_value_map = {m["task_id"]: m["business_value"] for m in custom["tasks_extension"]["business_value_schema"]["mapping"]}
-    flex_map = {m["task_id"]: m["is_flexible"] for m in custom["tasks_extension"]["is_flexible_schema"]["mapping"]}
-    skills_map = {m["task_id"]: m["required_skills"] for m in custom["tasks_extension"]["required_skills_schema"]["mapping"]}
+    biz_value_map = {m["task_id"]: m.get("business_value") for m in custom.get("tasks_extension", {}).get("business_value_schema", {}).get("mapping", [])}
+    flex_map = {m["task_id"]: m.get("is_flexible") for m in custom.get("tasks_extension", {}).get("is_flexible_schema", {}).get("mapping", [])}
+    skills_map = {m["task_id"]: m.get("required_skills") for m in custom.get("tasks_extension", {}).get("required_skills_schema", {}).get("mapping", [])}
     
     for proj in raw_data.get("projects", []):
         if "task" in proj:
             tid = proj["task"]["id"]
             uncompleted_tasks.append({
                 "id": str(tid),
-                "customer_id": str(proj["customer_id"]),
-                "description": proj["task"]["title"],
+                "customer_id": str(proj.get("customer_id")),
+                "description": proj["task"].get("title", "Unknown Task"),
                 "required_skills": skills_map.get(tid, []),
                 "business_value": biz_value_map.get(tid, "LOW"),
                 "is_flexible": flex_map.get(tid, True),
-                "scheduled_time": proj["task"]["due_date"],
-                "geographic_zone": proj["address"]["city"],
-                "currently_assigned_to": str(proj["task"]["target_user_id"])
+                "scheduled_time": proj["task"].get("due_date", "None"),
+                "geographic_zone": proj.get("address", {}).get("city", "Unknown"),
+                "currently_assigned_to": str(proj["task"].get("target_user_id", "null"))
             })
 
     return {
-        "trigger_event": payload_trigger,
+        "trigger_event": "Dynamic event sent by UI or unprovided",
         "technicians": technicians,
         "uncompleted_tasks": uncompleted_tasks
     }
@@ -162,14 +157,17 @@ def run_dispatcher_for_single_task(filepath: str, task_id: str) -> str:
     client = genai.Client(api_key=api_key)
     
     system_prompt = """
-    You are an expert dispatcher for a trades business.
+    You are an expert dispatcher for a trades business. You are speaking directly to Emilio, your human dispatcher manager.
     A specific task needs immediate attention and reassignment.
     Look at the single task provided and the available technicians.
-    Select the optimal technician to assign based on:
-    1. Skill matching required for the task.
-    2. Geographic matching if possible.
-    3. Ignoring currently sick/unavailable technicians explicitly.
-    Provide a human-readable explanation of why this specific tech was chosen over others.
+    Select the optimal technician to assign based on the following algorithm:
+    1. Skill Checking: Do the technician's skills overlap with the required skills exactly? If not, compare the closest available technicians and provide a percentage (%) estimate of how high the possible fit is (e.g., '80% fit because they know electrical but not solar').
+    2. Capacity Checking: Does the assigned technician actually have availability for this task, or are they marked 'sick', 'unavailable', or completely overloaded?
+    3. Geographic Matching: Are they in the same zone?
+    
+    In the `human_explanation` field, structure your output strictly into **exactly two sentences**. 
+    Sentence 1: A warm greeting to Emilio followed by the justification (Availability, Skill Fit %, Location).
+    Sentence 2: A quick Risk Assessment detailing any constraints taken.
     """
     
     user_prompt = f"""
