@@ -308,3 +308,17 @@ body {
 }
 
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+.task-customer { font-size: 0.85rem; color: #a1a1aa; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.25rem; }
+.badge-container { display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap; }
+.badge { font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 9999px; font-weight: 600; display: inline-flex; align-items: center; gap: 0.25rem; }
+.badge-high { background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
+.badge-med { background: rgba(245, 158, 11, 0.1); color: #f59e0b; border: 1px solid rgba(245,158,11,0.2); }
+.badge-low { background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16,185,129,0.2); }
+.badge-skill { background: rgba(59, 130, 246, 0.1); color: #3b82f6; border: 1px solid rgba(59,130,246,0.2); }
+.form-body { text-align: left; }
+.form-group { margin-bottom: 1rem; }
+.form-group label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.form-control { width: 100%; padding: 0.75rem; border-radius: 8px; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--panel-border); color: var(--text-primary); font-family: inherit; font-size: 0.95rem; }
+.form-control:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
+.form-row { display: flex; gap: 1rem; }
+.form-row .form-group { flex: 1; }
