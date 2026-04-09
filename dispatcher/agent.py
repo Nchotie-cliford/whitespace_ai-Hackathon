@@ -70,49 +70,92 @@ def run_dispatcher(payload_json: str) -> str:
         return json.dumps({"error": str(e)})
 
 # ---------------------------------------------------------
+# Dynamic Parsing from HERO_data.json
+# ---------------------------------------------------------
+def build_payload_from_hero_data(filepath: str) -> dict:
+    """Parses the dense mock data file into our focused DispatcherInputPayload."""
+    with open(filepath, 'r') as f:
+        raw_data = json.load(f)["system_data"]
+        
+    custom = raw_data["custom_data_layer"]
+    
+    # 1. Grab specifically the sick technician event for the MVP
+    trigger = custom["trigger_events"]["mock_events"][0]
+    payload_trigger = {
+        "event_type": "worker_breakdown",
+        "target_id": str(trigger["target_id"]),
+        "message": trigger["message"]
+    }
+    
+    # 2. Build Technicians
+    technicians = []
+    # Merge basic user data with custom extensions
+    tech_extensions = {
+        ext["user_id"]: ext for ext in custom["technicians_extension"]["skills_schema"]["mapping"]
+    }
+    status_ext = {
+        ext["user_id"]: ext for ext in custom["technicians_extension"]["status_schema"]["mapping"]
+    }
+    zone_ext = {
+        ext["user_id"]: ext for ext in custom["technicians_extension"]["geographic_zone_schema"]["mapping"]
+    }
+    
+    for partner in raw_data["partners"]:
+        uid = partner["user_id"]
+        # Add tech_B purely to have capacity to re-assign
+        technicians.append({
+            "id": str(uid),
+            "name": partner["full_name"],
+            "status": status_ext.get(uid, {}).get("status", "unavailable"),
+            "skills": tech_extensions.get(uid, {}).get("skills", []),
+            "geographic_zone": zone_ext.get(uid, {}).get("current_zone", "Unknown")
+        })
+    # Hardcode a "Tech B" based on our scenario, as only Cliford is in partners
+    technicians.append({
+        "id": "315140", "name": "Junior Plumber Bob", "status": "active",
+        "skills": ["plumbing", "electrical"], "geographic_zone": "Berlin-Mitte"
+    })
+    
+    # 3. Build Uncompleted Tasks
+    uncompleted_tasks = []
+    biz_value_map = {m["task_id"]: m["business_value"] for m in custom["tasks_extension"]["business_value_schema"]["mapping"]}
+    flex_map = {m["task_id"]: m["is_flexible"] for m in custom["tasks_extension"]["is_flexible_schema"]["mapping"]}
+    skills_map = {m["task_id"]: m["required_skills"] for m in custom["tasks_extension"]["required_skills_schema"]["mapping"]}
+    
+    for proj in raw_data.get("projects", []):
+        if "task" in proj:
+            tid = proj["task"]["id"]
+            uncompleted_tasks.append({
+                "id": str(tid),
+                "customer_id": str(proj["customer_id"]),
+                "description": proj["task"]["title"],
+                "required_skills": skills_map.get(tid, []),
+                "business_value": biz_value_map.get(tid, "LOW"),
+                "is_flexible": flex_map.get(tid, True),
+                "scheduled_time": proj["task"]["due_date"],
+                "geographic_zone": proj["address"]["city"],
+                "currently_assigned_to": str(proj["task"]["target_user_id"])
+            })
+
+    return {
+        "trigger_event": payload_trigger,
+        "technicians": technicians,
+        "uncompleted_tasks": uncompleted_tasks
+    }
+
+def run_dispatcher_with_mock(filepath: str) -> str:
+    payload = build_payload_from_hero_data(filepath)
+    return run_dispatcher(json.dumps(payload))
+
+# ---------------------------------------------------------
 # Local Scenario Testing (The High-Stakes Breakdown MVP)
 # ---------------------------------------------------------
 if __name__ == "__main__":
     
-    mock_payload = {
-        "trigger_event": {
-            "event_type": "worker_breakdown",
-            "target_id": "TECH_A",
-            "message": "URGENT: Tech A's van broke down. Out for the rest of the day."
-        },
-        "technicians": [
-            {
-                "id": "TECH_A", "name": "Master Plumber Alice", "status": "unavailable",
-                "skills": ["plumbing", "master"], "geographic_zone": "Zone_North"
-            },
-            {
-                "id": "TECH_B", "name": "Junior Plumber Bob", "status": "active",
-                "skills": ["plumbing"], "geographic_zone": "Zone_North"
-            }
-        ],
-        "uncompleted_tasks": [
-            {
-                "id": "TASK_COMMERCIAL", "description": "High-rise pipe burst", "customer_id": "CUST_01",
-                "required_skills": ["plumbing"], "business_value": "HIGH", "is_flexible": False, 
-                "geographic_zone": "Zone_North", "currently_assigned_to": "TECH_A"
-            },
-            {
-                "id": "TASK_RESIDENTIAL_1", "description": "Leaky faucet", "customer_id": "CUST_02",
-                "required_skills": ["plumbing"], "business_value": "LOW", "is_flexible": True,
-                "geographic_zone": "Zone_North", "currently_assigned_to": "TECH_A"
-            },
-            {
-                 "id": "TASK_BOB_MAINTENANCE", "description": "Routine check", "customer_id": "CUST_03",
-                 "required_skills": ["plumbing"], "business_value": "LOW", "is_flexible": True,
-                 "geographic_zone": "Zone_North", "currently_assigned_to": "TECH_B"
-            }
-        ]
-    }
-    
     if os.getenv("GEMINI_API_KEY") and os.getenv("GEMINI_API_KEY") != "your_key_here":
-        print("Running High-Stakes Chaos Protocol with Google GenAI SDK...\n")
-        result = run_dispatcher(json.dumps(mock_payload))
-        print("Final Output JSON (To be sent back to UI/HERO):")
+        print("Parsing 'data/HERO_data.json' and running Dispatcher...")
+        result = run_dispatcher_with_mock("data/HERO_data.json")
+        print("\nFinal Output JSON (To be sent back to UI/HERO):")
         print(result) # Result is already a validated JSON string
     else:
         print("Skipping run. GEMINI_API_KEY environment variable is not configured.")
