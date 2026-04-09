@@ -74,9 +74,19 @@ def run_dispatcher(payload_json: str, task_id: str) -> str:
 # Dynamic Parsing from HERO_data.json
 # ---------------------------------------------------------
 def build_payload_from_hero_data(filepath: str) -> dict:
-    """Parses the dense mock data file into our focused DispatcherInputPayload."""
-    with open(filepath, 'r') as f:
-        raw_data = json.load(f)["system_data"]
+    """Parses web/HERO_data.js (strips JS wrapper) into the dispatcher payload."""
+    with open(filepath, 'r', encoding='utf-8') as f:
+        content = f.read().strip()
+
+    # Strip the JS wrapper: "window.HERO_DATA = {...};" → pure JSON
+    if content.startswith('window.HERO_DATA'):
+        # Remove everything up to and including the first '='
+        content = content[content.index('=') + 1:].strip()
+        # Remove trailing semicolon if present
+        if content.endswith(';'):
+            content = content[:-1].strip()
+
+    raw_data = json.loads(content)["system_data"]
         
     custom = raw_data.get("custom_data_layer", {})
     
@@ -130,25 +140,26 @@ def build_payload_from_hero_data(filepath: str) -> dict:
         "uncompleted_tasks": uncompleted_tasks
     }
 
-def run_dispatcher_with_mock(filepath: str, task_id: str) -> str:
-    payload = build_payload_from_hero_data(filepath)
+def run_dispatcher_with_mock(task_id: str) -> str:
+    payload = build_payload_from_hero_data("web/HERO_data.js")
     return run_dispatcher(json.dumps(payload), task_id)
 
-def run_dispatcher_for_single_task(filepath: str, task_id: str) -> str:
+def run_dispatcher_for_single_task(task_id: str) -> str:
     """Isolates the AI reassignment specifically for one task."""
-    payload = build_payload_from_hero_data(filepath)
+    payload = build_payload_from_hero_data("web/HERO_data.js")
     
     # Strip "TSK-" prefix just in case the UI passes it
     clean_task_id = str(task_id).replace("TSK-", "")
     
-    # Filter the uncompleted_tasks down to only the requested one
+    # Filter the uncompleted_tasks down to only the requested one to verify it exists
     target_task = next((t for t in payload["uncompleted_tasks"] if str(t["id"]) == clean_task_id), None)
     
     if not target_task:
         return json.dumps({"error": f"Task {clean_task_id} not found."})
         
-    payload["uncompleted_tasks"] = [target_task]
-    payload["trigger_event"] = {"event_type": "manual_reassignment", "target_id": clean_task_id, "message": "Manual UI request for specific task"}
+    # DO NOT wipe the rest of the schedule! We need the AI to see all tasks to check if tech is busy!
+    payload["target_task_to_reassign"] = target_task
+    payload["trigger_event"] = {"event_type": "manual_reassignment", "target_id": clean_task_id, "message": f"UI requests immediate reassignment of Task {clean_task_id}."}
     
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -198,9 +209,9 @@ def run_dispatcher_for_single_task(filepath: str, task_id: str) -> str:
 if __name__ == "__main__":
     
     if os.getenv("GEMINI_API_KEY") and os.getenv("GEMINI_API_KEY") != "your_key_here":
-        print("Parsing 'data/HERO_data.json' and running Dispatcher...")
-        result = run_dispatcher_with_mock("data/HERO_data.json", "1678518")
+        print("Parsing 'web/HERO_data.js' and running Dispatcher...")
+        result = run_dispatcher_with_mock("1678518")
         print("\nFinal Output JSON (To be sent back to UI/HERO):")
-        print(result) # Result is already a validated JSON string
+        print(result)
     else:
         print("Skipping run. GEMINI_API_KEY environment variable is not configured.")
