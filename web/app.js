@@ -1,261 +1,581 @@
-// Array to hold the parsed tasks
+// =============================================
+// HERO Chaos Dashboard — app.js
+// =============================================
+
 let mockTasks = [];
+let currentCalendarDate = new Date();
+let selectedCalendarDate = null;
+let fabOpen = false;
+let sessionEmergencyInjected = false;
 
-const container = document.getElementById('taskContainer');
-const countSpan = document.getElementById('taskCount');
+// =============================================
+// ID Generation — collision-safe
+// =============================================
+/**
+ * Returns a numeric ID that is guaranteed not to already exist in HERO_DATA.
+ * Collects all project ids and task ids from the live data, then picks a
+ * candidate from a high-range bucket and retries until it finds a free slot.
+ *
+ * @param {number} [rangeStart=90000000] - lower bound of candidate range
+ * @returns {number}
+ */
+function generateUniqueId(rangeStart = 90000000) {
+    const projects = window.HERO_DATA?.system_data?.projects || [];
 
-function renderTasks(tasks) {
-    container.innerHTML = '';
-    countSpan.textContent = `(${tasks.length})`;
-    
-    tasks.forEach((task, index) => {
-        const card = document.createElement('div');
-        card.className = `glass-panel task-card animate-in`;
-        card.style.animationDelay = `${index * 50}ms`;
-        card.onclick = () => openAiModal(task.id);
-        
-        let statusClass = 'status-active';
-        let statusText = 'On Track';
-        
-        if(task.status === 'emergency') {
-            statusClass = 'status-emergency';
-            statusText = 'Emergency';
-        } else if (task.status === 'delayed') {
-            statusClass = 'status-delayed';
-            statusText = 'Delayed';
-        } else if (task.status === 'reassigned') {
-            statusClass = 'status-active';
-            statusText = 'AI Reassigned';
-        }
-
-        let valBadge = '';
-        if (task.businessValue) {
-            const lowVal = task.businessValue.toLowerCase();
-            valBadge = `<span class="badge badge-${lowVal}">Value: ${task.businessValue}</span>`;
-        }
-        
-        let skillsBadge = '';
-        if (task.skills && task.skills.length > 0) {
-            skillsBadge = task.skills.map(s => `<span class="badge badge-skill">${s}</span>`).join('');
-        }
-
-        card.innerHTML = `
-            <div class="task-header">
-                <span class="task-id">${task.id}</span>
-                <span class="task-status ${statusClass}">${statusText}</span>
-            </div>
-            <h3 class="task-title">${task.title}</h3>
-            <div class="task-customer">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                ${task.customer} &bull; ${task.city}
-            </div>
-            <div class="task-details">
-                <div class="task-meta">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 9.36l-7.1 7.1a1 1 0 0 1-1.4 0l-2.83-2.83a1 1 0 0 1 0-1.4l7.1-7.1a6 6 0 0 1 9.36-7.94l-3.77 3.77z"></path></svg>
-                    <strong>Tech:</strong> ${task.tech}
-                </div>
-                <div class="task-meta">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                    <strong>Due:</strong> ${task.date}
-                </div>
-            </div>
-            <div class="badge-container">
-                ${valBadge}
-                ${skillsBadge}
-            </div>
-        `;
-        container.appendChild(card);
+    // Build a set of every id currently in use (project ids + task ids)
+    const usedIds = new Set();
+    projects.forEach(p => {
+        if (p.id)        usedIds.add(p.id);
+        if (p.task?.id)  usedIds.add(p.task.id);
     });
+
+    // Also gather ids from extension mappings so we never clash there either
+    const ext = window.HERO_DATA?.system_data?.custom_data_layer?.tasks_extension;
+    if (ext?.business_value_schema?.mapping)
+        ext.business_value_schema.mapping.forEach(m => usedIds.add(m.task_id));
+
+    let candidate;
+    do {
+        // Spread over a 10-million range; timestamp adds entropy so two rapid
+        // calls in the same millisecond still produce different base values.
+        candidate = rangeStart + (Date.now() % 9000000) + Math.floor(Math.random() * 1000);
+    } while (usedIds.has(candidate));
+
+    return candidate;
 }
 
+// Bug 6 fix: sanitize user-supplied strings before inserting into innerHTML
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// =============================================
+// German Date Helpers
+// =============================================
+const DAYS_DE   = ['SONNTAG','MONTAG','DIENSTAG','MITTWOCH','DONNERSTAG','FREITAG','SAMSTAG'];
+const MONTHS_DE = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+
+function getISOWeek(date) {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+function formatDateHeader(dateObj) {
+    const today    = new Date();
+    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+    const day = DAYS_DE[dateObj.getDay()];
+    const dd  = String(dateObj.getDate()).padStart(2, '0');
+    const mm  = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const yyyy = dateObj.getFullYear();
+    const kw   = getISOWeek(dateObj);
+    const datePart = `${dd}.${mm}.${yyyy} - KW${kw}`;
+    if (isSameDay(dateObj, today))    return `HEUTE, ${datePart}`;
+    if (isSameDay(dateObj, tomorrow)) return `MORGEN, ${datePart}`;
+    return `${day}, ${datePart}`;
+}
+
+function isSameDay(a, b) {
+    return a.getFullYear() === b.getFullYear() &&
+           a.getMonth()    === b.getMonth()    &&
+           a.getDate()     === b.getDate();
+}
+
+// =============================================
+// Data Loading
+// =============================================
 function loadDataAndRender() {
     try {
         const data = window.HERO_DATA;
-        if (!data) throw new Error('HERO_DATA not found. Did you include HERO_data.js?');
-        
-        const system = data.system_data;
-        const projects = system.projects || [];
-        const ext = system.custom_data_layer;
-        
-        mockTasks = projects.map(proj => {
-            const task = proj.task;
-            
-            // Format date
-            const dateObj = new Date(task.due_date);
-            const formattedDate = dateObj.toLocaleDateString('en-US', { 
-                month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
-            });
+        if (!data) throw new Error('HERO_DATA not found.');
 
-            // Extract extended data if available
-            let bValue = "MED";
-            if (ext && ext.tasks_extension && ext.tasks_extension.business_value_schema) {
+        const system   = data.system_data;
+        const projects = system.projects || [];
+        const ext      = system.custom_data_layer;
+
+        mockTasks = projects.map(proj => {
+            const task    = proj.task;
+            const dateObj = new Date(task.due_date);
+
+            let bValue = 'MED';
+            if (ext?.tasks_extension?.business_value_schema) {
                 const bmap = ext.tasks_extension.business_value_schema.mapping.find(m => m.task_id === task.id);
                 if (bmap) bValue = bmap.business_value;
             }
-            
+
             let reqSkills = [];
-            if (ext && ext.tasks_extension && ext.tasks_extension.required_skills_schema) {
+            if (ext?.tasks_extension?.required_skills_schema) {
                 const smap = ext.tasks_extension.required_skills_schema.mapping.find(m => m.task_id === task.id);
                 if (smap) reqSkills = smap.required_skills;
             }
 
             return {
-                id: 'TSK-' + task.id,
-                rawId: task.id, // Keep raw purely for logic checks
-                title: task.title,
-                tech: proj.partner_name,
-                customer: proj.customer_name,
-                city: proj.address ? proj.address.city : '',
-                date: formattedDate,
-                status: 'active',
+                id:            'TSK-' + task.id,
+                rawId:         task.id,
+                title:         task.title,
+                tech:          proj.partner_name,
+                targetUserId:  task.target_user_id || null, // Bug 5 fix: store for trigger matching
+                customer:      proj.customer_name,
+                city:          proj.address ? proj.address.city : '',
+                dateObj:       dateObj,
+                status:        'active',
                 businessValue: bValue,
-                skills: reqSkills
+                skills:        reqSkills
             };
         });
-        
-        renderTasks(mockTasks);
+
+        renderListView();
+        renderCalendar();
     } catch(err) {
-        console.error('Error fetching data:', err);
+        console.error('Error loading data:', err);
     }
 }
 
-// Initial Render from window.HERO_DATA
-loadDataAndRender();
+// =============================================
+// LIST VIEW
+// =============================================
+function renderListView(dateFilter) {
+    const list  = document.getElementById('taskList');
+    const empty = document.getElementById('emptyState');
+    list.innerHTML = '';
 
-// Box Triggers powered by HERO_data.json simulated events
+    let tasks = [...mockTasks];
+
+    // Search filter
+    const q = (document.getElementById('searchInput').value || '').toLowerCase();
+    if (q) {
+        tasks = tasks.filter(t =>
+            t.title.toLowerCase().includes(q) ||
+            (t.customer || '').toLowerCase().includes(q) ||
+            (t.city || '').toLowerCase().includes(q)
+        );
+    }
+
+    // Calendar day filter
+    if (dateFilter) {
+        tasks = tasks.filter(t => isSameDay(t.dateObj, dateFilter));
+    }
+
+    if (tasks.length === 0) {
+        empty.classList.remove('hidden');
+        return;
+    }
+    empty.classList.add('hidden');
+
+    // Sort by date
+    tasks.sort((a, b) => a.dateObj - b.dateObj);
+
+    // Group by calendar day
+    const groups = {};
+    tasks.forEach(t => {
+        const key = t.dateObj.toDateString();
+        if (!groups[key]) groups[key] = { dateObj: t.dateObj, tasks: [] };
+        groups[key].tasks.push(t);
+    });
+
+    let animIdx = 0;
+    Object.values(groups).forEach(group => {
+        // Date header
+        const header = document.createElement('div');
+        header.className = 'date-group-header';
+        header.textContent = formatDateHeader(group.dateObj);
+        list.appendChild(header);
+
+        // Task items
+        group.tasks.forEach(task => {
+            const item = createTaskListItem(task);
+            item.style.animationDelay = `${animIdx * 30}ms`;
+            animIdx++;
+            list.appendChild(item);
+        });
+    });
+}
+
+function createTaskListItem(task) {
+    const item = document.createElement('div');
+    item.className = 'task-list-item animate-in';
+    item.onclick = () => openAiModal(task.id);
+
+    let statusClass = 'status-active';
+    let statusText  = 'Aktiv';
+    if (task.status === 'emergency')  { statusClass = 'status-emergency'; statusText = 'Notfall'; }
+    else if (task.status === 'delayed')   { statusClass = 'status-delayed';   statusText = 'Verzögert'; }
+    else if (task.status === 'reassigned') { statusClass = 'status-active';    statusText = 'KI Zugeteilt'; }
+
+    const bv = (task.businessValue || 'med').toLowerCase();
+    const valBadge    = `<span class="badge badge-${bv}">${escapeHtml(task.businessValue)}</span>`;
+    const skillBadges = (task.skills || []).slice(0, 2).map(s => `<span class="badge badge-skill">${escapeHtml(s)}</span>`).join('');
+
+    // Technician initials (Bug 6: escape before use in attribute/content)
+    const techSafe   = escapeHtml(task.tech || '??');
+    const initials   = (task.tech || '??').split(' ').map(n => n[0] || '').join('').slice(0, 2).toUpperCase();
+
+    // Time display
+    const timeStart = task.dateObj.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    const timeEnd   = new Date(task.dateObj.getTime() + 3600000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    const cityPart  = task.city ? ` · ${escapeHtml(task.city)}` : '';
+
+    item.innerHTML = `
+        <div class="task-item-left">
+            <div class="task-item-title">${escapeHtml(task.title)}</div>
+            <div class="task-item-time">${timeStart} – ${timeEnd}${task.customer ? ' · ' + escapeHtml(task.customer) : ''}${cityPart}</div>
+            <div class="task-item-meta">
+                <span class="status-tag ${statusClass}">${statusText}</span>
+                ${valBadge}
+                ${skillBadges}
+            </div>
+        </div>
+        <div class="task-item-right">
+            <div class="tech-avatar" title="${techSafe}">${initials}</div>
+        </div>
+    `;
+    return item;
+}
+
+// =============================================
+// CALENDAR
+// =============================================
+function renderCalendar() {
+    const widget = document.getElementById('calendarWidget');
+    const year   = currentCalendarDate.getFullYear();
+    const month  = currentCalendarDate.getMonth();
+    const today  = new Date();
+
+    // Map of task dates
+    const taskDates = {};
+    mockTasks.forEach(t => {
+        const key = `${t.dateObj.getFullYear()}-${t.dateObj.getMonth()}-${t.dateObj.getDate()}`;
+        if (!taskDates[key]) taskDates[key] = [];
+        taskDates[key].push(t);
+    });
+
+    const firstDay = new Date(year, month, 1);
+    const lastDay  = new Date(year, month + 1, 0);
+
+    // Monday-based offset (0=Mon … 6=Sun)
+    let startOffset = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+    let endOffset   = lastDay.getDay()   === 0 ? 6 : lastDay.getDay()  - 1;
+
+    widget.innerHTML = `
+        <div class="cal-header">
+            <button class="cal-nav-btn" id="calPrev">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            </button>
+            <span class="cal-title">${MONTHS_DE[month]} ${year}</span>
+            <button class="cal-nav-btn" id="calNext">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+        </div>
+        <div class="cal-grid" id="calGrid">
+            <div class="cal-day-header">Mo.</div>
+            <div class="cal-day-header">Di.</div>
+            <div class="cal-day-header">Mi.</div>
+            <div class="cal-day-header">Do.</div>
+            <div class="cal-day-header">Fr.</div>
+            <div class="cal-day-header">Sa.</div>
+            <div class="cal-day-header">So.</div>
+        </div>
+    `;
+
+    document.getElementById('calPrev').onclick = () => {
+        currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
+        renderCalendar();
+    };
+    document.getElementById('calNext').onclick = () => {
+        currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
+        renderCalendar();
+    };
+
+    const grid = document.getElementById('calGrid');
+
+    // Leading filler
+    for (let i = 0; i < startOffset; i++) {
+        const prevDate = new Date(year, month, -startOffset + i + 1);
+        const cell = document.createElement('div');
+        cell.className = 'cal-day other-month';
+        cell.innerHTML = `<span class="day-num">${prevDate.getDate()}</span>`;
+        grid.appendChild(cell);
+    }
+
+    // Actual days
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+        const cellDate = new Date(year, month, d);
+        const key      = `${year}-${month}-${d}`;
+        const dayTasks = taskDates[key] || [];
+
+        const cell = document.createElement('div');
+        cell.className = 'cal-day';
+        if (isSameDay(cellDate, today)) cell.classList.add('today');
+        if (selectedCalendarDate && isSameDay(cellDate, selectedCalendarDate)) cell.classList.add('selected');
+
+        let eventHtml = '';
+        if (dayTasks.length === 1) {
+            eventHtml = `<span class="cal-event-pill">${dayTasks[0].title.substring(0, 10)}</span>`;
+        } else if (dayTasks.length > 1) {
+            eventHtml = `<span class="cal-event-pill">${dayTasks.length} Termine</span>`;
+        }
+
+        cell.innerHTML = `<span class="day-num">${d}</span>${eventHtml}`;
+        cell.onclick = () => {
+            selectedCalendarDate = (selectedCalendarDate && isSameDay(cellDate, selectedCalendarDate)) ? null : cellDate;
+            renderCalendar();
+            renderCalendarDayTasks(selectedCalendarDate ? dayTasks : []);
+        };
+
+        grid.appendChild(cell);
+    }
+
+    // Trailing filler
+    const trailingCount = 6 - endOffset;
+    for (let i = 1; i <= trailingCount; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'cal-day other-month';
+        cell.innerHTML = `<span class="day-num">${i}</span>`;
+        grid.appendChild(cell);
+    }
+}
+
+function renderCalendarDayTasks(tasks) {
+    const container = document.getElementById('calendarDayTasks');
+    container.innerHTML = '';
+    if (!tasks || tasks.length === 0) return;
+
+    const header = document.createElement('div');
+    header.className = 'date-group-header';
+    header.textContent = formatDateHeader(tasks[0].dateObj);
+    container.appendChild(header);
+
+    tasks.forEach(task => container.appendChild(createTaskListItem(task)));
+}
+
+// =============================================
+// TAB SWITCHING
+// =============================================
+document.getElementById('tabListe').addEventListener('click', () => {
+    document.getElementById('tabListe').classList.add('active');
+    document.getElementById('tabKalender').classList.remove('active');
+    document.getElementById('listeView').classList.remove('hidden');
+    document.getElementById('kalenderView').classList.add('hidden');
+});
+
+document.getElementById('tabKalender').addEventListener('click', () => {
+    document.getElementById('tabKalender').classList.add('active');
+    document.getElementById('tabListe').classList.remove('active');
+    document.getElementById('kalenderView').classList.remove('hidden');
+    document.getElementById('listeView').classList.add('hidden');
+});
+
+// =============================================
+// SEARCH
+// =============================================
+document.getElementById('searchInput').addEventListener('input', () => renderListView());
+
+// =============================================
+// REFRESH — resets in-memory state and re-renders from current window.HERO_DATA
+// =============================================
+document.getElementById('btnRefresh').addEventListener('click', async () => {
+    // Also reset the persisted JSON to the clean backup so the next page load is fresh
+    try {
+        await fetch('http://localhost:8000/api/reset', { method: 'POST' });
+    } catch(_) { /* offline – just re-render in-memory */ }
+    sessionEmergencyInjected = false;
+    loadDataAndRender();
+});
+
+// =============================================
+// FAB SPEED DIAL
+// =============================================
+function openFab() {
+    fabOpen = true;
+    document.getElementById('fabMain').classList.add('open');
+    document.getElementById('fabMenu').classList.add('open');
+}
+
+function closeFab() {
+    fabOpen = false;
+    document.getElementById('fabMain').classList.remove('open');
+    document.getElementById('fabMenu').classList.remove('open');
+}
+
+document.getElementById('fabMain').addEventListener('click', (e) => {
+    e.stopPropagation();
+    fabOpen ? closeFab() : openFab();
+});
+
+document.addEventListener('click', (e) => {
+    if (fabOpen && !document.getElementById('fabContainer').contains(e.target)) closeFab();
+});
+
+document.getElementById('fabNewTask').addEventListener('click', () => {
+    closeFab();
+    openAddTaskModal();
+});
+
+document.getElementById('fabChaosOption').addEventListener('click', () => {
+    closeFab();
+    openChaosSheet();
+});
+
+// =============================================
+// CHAOS TRIGGERS SHEET
+// =============================================
+// Original labels so we can restore them after feedback
+const TRIGGER_LABELS = {
+    btnSickUser: 'Kranker Mitarbeiter',
+    btnOverrun:  'Zeitüberschreitung',
+    btnFlood:    'Notfall-Einsatz'
+};
+
+function resetTriggerButtons() {
+    Object.entries(TRIGGER_LABELS).forEach(([id, label]) => {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        btn.classList.remove('triggered');
+        btn.querySelector('strong').textContent = label;
+    });
+}
+
+function openChaosSheet() {
+    resetTriggerButtons(); // always start with fresh button state
+    document.getElementById('chaosOverlay').classList.remove('hidden');
+    document.getElementById('chaosSheet').classList.remove('hidden');
+}
+
+function closeChaosSheet() {
+    document.getElementById('chaosOverlay').classList.add('hidden');
+    document.getElementById('chaosSheet').classList.add('hidden');
+}
+
+document.getElementById('chaosOverlay').addEventListener('click', closeChaosSheet);
+document.getElementById('closeChaosSheet').addEventListener('click', closeChaosSheet);
+
 const triggers = window.HERO_DATA?.system_data?.custom_data_layer?.trigger_events?.mock_events || [];
 
-document.getElementById('btnSickUser').addEventListener('click', (e) => {
-    e.target.style.border = '1px solid var(--danger)';
-    e.target.style.color = 'var(--danger)';
-    
-    // Find sick event
+// Helper: show feedback on a trigger button then re-enable it after a delay
+function triggerFeedback(btn, label, feedbackClass, delay = 2000) {
+    btn.classList.add('triggered', feedbackClass);
+    btn.querySelector('strong').textContent = '✓ Ausgelöst: ' + label;
+    setTimeout(() => {
+        btn.classList.remove('triggered', feedbackClass);
+        btn.querySelector('strong').textContent = label;
+    }, delay);
+}
+
+document.getElementById('btnSickUser').addEventListener('click', () => {
+    const btn = document.getElementById('btnSickUser');
+    if (btn.classList.contains('triggered')) return; // debounce during feedback window
+    triggerFeedback(btn, 'Kranker Mitarbeiter', 'chaos-danger');
+
     const evt = triggers.find(t => t.event_type === 'technician_sick');
     if (evt) {
-        document.getElementById('btnSickUser').innerText = 'Triggered: Tech Sick';
+        const sickUserId = evt.target_id;
         mockTasks = mockTasks.map(t => {
-            if (evt.affected_tasks.includes(t.rawId) || t.tech === 'Cliford Nchotie') {
-                const proj = window.HERO_DATA.system_data.projects.find(p => p.task && p.task.id === t.rawId);
+            const isAffected = evt.affected_tasks.includes(t.rawId) ||
+                               (t.targetUserId && t.targetUserId === sickUserId);
+            if (isAffected) {
+                const proj = window.HERO_DATA.system_data.projects.find(p => p.task?.id === t.rawId);
                 if (proj) {
-                    proj.partner_name = 'UNASSIGNED (Sick)';
-                    // Update extension logic offline
+                    proj.partner_name = 'NICHT ZUGEWIESEN (Krank)';
                     const ext = window.HERO_DATA.system_data.custom_data_layer.technicians_extension;
-                    if(ext && ext.status_schema && ext.status_schema.mapping[0]) {
-                        ext.status_schema.mapping[0].status = 'sick';
-                    }
+                    if (ext?.status_schema?.mapping[0]) ext.status_schema.mapping[0].status = 'sick';
                 }
-                return { ...t, status: 'delayed', tech: 'UNASSIGNED (Sick)' };
+                return { ...t, status: 'delayed', tech: 'NICHT ZUGEWIESEN (Krank)' };
             }
             return t;
         });
-        saveToServer();
-        renderTasks(mockTasks);
+        renderListView();
+        renderCalendar();
     }
+    setTimeout(closeChaosSheet, 1400);
 });
 
-document.getElementById('btnOverrun').addEventListener('click', (e) => {
-    e.target.style.border = '1px solid var(--warning)';
-    e.target.style.color = 'var(--warning)';
-    
+document.getElementById('btnOverrun').addEventListener('click', () => {
+    const btn = document.getElementById('btnOverrun');
+    if (btn.classList.contains('triggered')) return;
+    triggerFeedback(btn, 'Zeitüberschreitung', 'chaos-warning');
+
     const evt = triggers.find(t => t.event_type === 'delay');
     if (evt) {
-        document.getElementById('btnOverrun').innerText = 'Triggered: Delay Event';
         mockTasks = mockTasks.map(t => {
             if (evt.affected_tasks.includes(t.rawId)) {
-                const proj = window.HERO_DATA.system_data.projects.find(p => p.task && p.task.id === t.rawId);
-                if(proj && proj.task) proj.task.title = proj.task.title + ' [DELAYED]';
-                
-                return { ...t, title: t.title + ' [DELAYED]', status: 'delayed', date: t.date + ' (+2h)' };
+                const alreadyDelayed = t.title.includes('[VERZÖGERT]');
+                const newTitle = alreadyDelayed ? t.title : t.title + ' [VERZÖGERT]';
+                const proj = window.HERO_DATA.system_data.projects.find(p => p.task?.id === t.rawId);
+                if (proj?.task && !alreadyDelayed) proj.task.title = newTitle;
+                return { ...t, title: newTitle, status: 'delayed' };
             }
             return t;
         });
-        saveToServer();
-        renderTasks(mockTasks);
+        renderListView();
+        renderCalendar();
     }
+    setTimeout(closeChaosSheet, 1400);
 });
 
-document.getElementById('btnFlood').addEventListener('click', (e) => {
-    e.target.style.border = '1px solid var(--danger)';
-    e.target.style.color = 'var(--danger)';
-    
-    const evt = triggers.find(t => t.event_type === 'new_urgent_task');
-    if (evt) {
-        document.getElementById('btnFlood').innerText = 'Triggered: Urgent Task';
-        
-        // Avoid adding multiple times
-        if(!window.HERO_DATA.system_data.projects.find(p => p.task && p.task.id === 999)) {
-            const newProject = {
-                id: 10050999,
-                name: "Service – Jane Smith (EMERGENCY)",
-                project_nr: "10050999",
-                type_id: 56961,
-                type_name: "🛠️ Service",
-                step_id: 684123,
-                step_name: "🆕 Offen",
-                measure_id: 6464,
-                measure_name: "Projekt",
-                partner_id: null,
-                partner_name: "UNASSIGNED",
-                customer_id: 6803553,
-                customer_name: "Jane Smith",
-                address: {
-                    street: "Mönckebergstraße 7",
-                    zipcode: "20095",
-                    city: "Hamburg"
-                },
-                task: {
-                    id: 999,
-                    title: "EMERGENCY: Immediate Repair",
-                    due_date: new Date().toISOString()
-                }
-            };
-            
-            // Push to core models
-            window.HERO_DATA.system_data.projects.unshift(newProject); // add to top
-            
-            // Push to Schema models
-            const ext = window.HERO_DATA.system_data.custom_data_layer.tasks_extension;
-            if (ext) {
-                if (ext.business_value_schema) ext.business_value_schema.mapping.push({ task_id: 999, business_value: 'HIGH' });
-                if (ext.required_skills_schema) ext.required_skills_schema.mapping.push({ task_id: 999, required_skills: ['repair', 'electrical'] });
-            }
-            
-            saveToServer();
-            loadDataAndRender();
-        }
+document.getElementById('btnFlood').addEventListener('click', () => {
+    const btn = document.getElementById('btnFlood');
+    if (btn.classList.contains('triggered')) return;
+    triggerFeedback(btn, 'Notfall-Einsatz', 'chaos-danger');
+
+    // Each click injects a fresh emergency task with a new unique id
+    // so the flood trigger can be fired multiple times to simulate repeated emergencies
+    sessionEmergencyInjected = true;
+    const emergencyProjectId = generateUniqueId();
+    const emergencyTaskId    = generateUniqueId();
+    const newProject = {
+        id: emergencyProjectId, name: "Service – Jane Smith (NOTFALL)", project_nr: String(emergencyProjectId),
+        type_id: 56961, type_name: "🛠️ Service", step_id: 684123, step_name: "🆕 Offen",
+        measure_id: 6464, measure_name: "Projekt",
+        partner_id: null, partner_name: "NICHT ZUGEWIESEN",
+        customer_id: 6803553, customer_name: "Jane Smith",
+        address: { street: "Mönckebergstraße 7", zipcode: "20095", city: "Hamburg" },
+        task: { id: emergencyTaskId, title: "NOTFALL: Sofortreparatur", due_date: new Date().toISOString(), target_user_id: null }
+    };
+    window.HERO_DATA.system_data.projects.unshift(newProject);
+
+    const ext = window.HERO_DATA.system_data.custom_data_layer.tasks_extension;
+    if (ext) {
+        if (ext.business_value_schema)  ext.business_value_schema.mapping.push({ task_id: emergencyTaskId, business_value: 'HIGH' });
+        if (ext.required_skills_schema) ext.required_skills_schema.mapping.push({ task_id: emergencyTaskId, required_skills: ['repair', 'electrical'] });
     }
+    loadDataAndRender();
+    setTimeout(closeChaosSheet, 1400);
 });
 
-// AI Modal Handling
-const aiOverlay = document.getElementById('aiModalOverlay');
-const stateLoading = document.getElementById('aiLoading');
+// =============================================
+// AI DISPATCH MODAL
+// =============================================
+const aiOverlay       = document.getElementById('aiModalOverlay');
+const stateLoading    = document.getElementById('aiLoading');
 const stateResolution = document.getElementById('aiResolution');
 const actionContainer = document.getElementById('aiActions');
 
 let currentActiveTaskId = null;
 let currentAiSuggestion = null;
-let rejectCounter = 0;
 
 function openAiModal(taskId) {
     currentActiveTaskId = taskId;
-    rejectCounter = 0;
-    
     aiOverlay.classList.remove('hidden');
     triggerAiCalculation();
 }
 
-function closeModal() {
-    aiOverlay.classList.add('hidden');
-}
+function closeAiModal() { aiOverlay.classList.add('hidden'); }
 
 async function triggerAiCalculation() {
-    // Reset UI to loading
     stateLoading.classList.add('active');
     stateLoading.classList.remove('hidden');
     stateResolution.classList.add('hidden');
     stateResolution.classList.remove('active');
     actionContainer.classList.add('hidden');
-    
+
     try {
         const response = await fetch('http://localhost:8000/api/dispatch_task', {
             method: 'POST',
@@ -263,25 +583,19 @@ async function triggerAiCalculation() {
             body: JSON.stringify({ task_id: currentActiveTaskId })
         });
         const data = await response.json();
-        
         if (data.error) throw new Error(data.error);
-        
-        if (data.assignments && data.assignments.length > 0) {
-            resolveAiSuggestion(data.assignments[0]);
-        } else {
-            resolveAiSuggestion({
-                new_technician_id: "UNASSIGNED",
-                scheduled_time: "No Slot Available",
-                human_explanation: "The AI could not find a viable assignment for this task."
-            });
-        }
+
+        if (data.assignments?.length > 0) resolveAiSuggestion(data.assignments[0]);
+        else resolveAiSuggestion({
+            new_technician_id: 'UNASSIGNED',
+            scheduled_time: 'Kein Slot verfügbar',
+            human_explanation: 'Die KI konnte keine passende Zuweisung finden.'
+        });
     } catch(err) {
-        console.error("AI Dispatch failed:", err);
-        // Fallback for UI testing if server is down
         resolveAiSuggestion({
-            new_technician_id: "Fallback Tech B",
-            scheduled_time: "Oct 24, 05:00 PM",
-            human_explanation: "Server offline - showing fallback mock assignment."
+            new_technician_id: 'Fallback Tech B',
+            scheduled_time: 'Demnächst',
+            human_explanation: 'Server offline – Fallback-Zuweisung wird angezeigt.'
         });
     }
 }
@@ -289,76 +603,112 @@ async function triggerAiCalculation() {
 function resolveAiSuggestion(aiData) {
     stateLoading.classList.remove('active');
     stateLoading.classList.add('hidden');
-    
-    // Store globally so Approve button can access it
-    // Wait, the API returns a string ID for the tech, we will look up the name offline for visuals.
-    let techName = "UNKNOWN TECH";
-    // Usually we would join this from HERO_DATA, but we'll try to find it
+
+    let techName = 'UNBEKANNT';
     const allPartners = window.HERO_DATA?.system_data?.partners || [];
     const p = allPartners.find(x => String(x.user_id) === String(aiData.new_technician_id));
     if (p) techName = p.full_name;
-    else if (aiData.new_technician_id) techName = "Technician ID: " + aiData.new_technician_id;
-    else techName = "None";
-    
-    currentAiSuggestion = {
-        tech: techName,
-        date: aiData.scheduled_time
-    };
-    
-    // Fill Dom
+    else if (aiData.new_technician_id && aiData.new_technician_id !== 'UNASSIGNED')
+        techName = 'Techniker ID: ' + aiData.new_technician_id;
+
+    currentAiSuggestion = { tech: techName, date: aiData.scheduled_time };
+
     document.getElementById('modalTaskId').innerText = currentActiveTaskId;
-    document.getElementById('modalTech').innerText = currentAiSuggestion.tech;
-    document.getElementById('modalTime').innerText = currentAiSuggestion.date;
-    
+    document.getElementById('modalTech').innerText   = currentAiSuggestion.tech;
+    document.getElementById('modalTime').innerText   = currentAiSuggestion.date;
+
     const reasonDOM = document.getElementById('modalReasoning');
-    if (reasonDOM) {
-        reasonDOM.innerText = aiData.human_explanation || "No explanation provided.";
-    }
-    
+    if (reasonDOM) reasonDOM.innerText = aiData.human_explanation || 'Keine Begründung angegeben.';
+
     stateResolution.classList.remove('hidden');
     stateResolution.classList.add('active');
     actionContainer.classList.remove('hidden');
 }
 
-document.getElementById('closeModalBtn').addEventListener('click', closeModal);
-document.getElementById('btnReject').addEventListener('click', () => {
-    rejectCounter++;
-    triggerAiCalculation();
-});
+document.getElementById('closeModalBtn').addEventListener('click', closeAiModal);
+aiOverlay.addEventListener('click', (e) => { if (e.target === aiOverlay) closeAiModal(); });
+
+document.getElementById('btnReject').addEventListener('click', () => triggerAiCalculation());
+
 document.getElementById('btnApprove').addEventListener('click', async () => {
-    // 1. Mutate core HERO_DATA
     const rawTaskId = parseInt(currentActiveTaskId.replace('TSK-', ''));
-    const proj = window.HERO_DATA.system_data.projects.find(p => p.task && p.task.id === rawTaskId);
-    if (proj) {
-        proj.partner_name = currentAiSuggestion.tech;
-        // In a real app we'd convert the "Oct 24, 04:15 PM" string string back to ISO, but for the hackathon we simply mutate.
-    }
-    
-    // 2. Save directly to Python server
+    const proj = window.HERO_DATA.system_data.projects.find(p => p.task?.id === rawTaskId);
+    if (proj) proj.partner_name = currentAiSuggestion.tech;
+
     await saveToServer();
-    
-    // 3. Reactively update UI
     loadDataAndRender();
-    closeModal();
+    closeAiModal();
 });
 
-// ==========================================
-// API Helper & Add Task Modal
-// ==========================================
+// =============================================
+// ADD TASK MODAL
+// =============================================
+function openAddTaskModal() {
+    const overlay = document.getElementById('addTaskModalOverlay');
+    overlay.classList.remove('hidden');
 
-const addModalOverlay = document.getElementById('addTaskModalOverlay');
-if (addModalOverlay) {
-    document.getElementById('btnOpenAddTask').addEventListener('click', () => {
-        addModalOverlay.classList.remove('hidden');
-    });
-    document.getElementById('closeAddModalBtn').addEventListener('click', () => {
-        addModalOverlay.classList.add('hidden');
-    });
-    document.getElementById('btnCancelAdd').addEventListener('click', () => {
-        addModalOverlay.classList.add('hidden');
-    });
+    // Pre-fill datetime
+    const now = new Date();
+    const fmt = d => d.toISOString().slice(0, 16);
+    document.getElementById('newTaskStart').value = fmt(now);
+    document.getElementById('newTaskEnd').value   = fmt(new Date(now.getTime() + 3600000));
 }
 
+function closeAddTaskModal() {
+    document.getElementById('addTaskModalOverlay').classList.add('hidden');
+}
+
+document.getElementById('closeAddModalBtn').addEventListener('click', closeAddTaskModal);
+document.getElementById('addTaskModalOverlay').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('addTaskModalOverlay')) closeAddTaskModal();
+});
+
+document.getElementById('btnSaveTask').addEventListener('click', async () => {
+    const title    = document.getElementById('newTaskTitle').value.trim()    || 'Neuer Termin';
+    const customer = document.getElementById('newTaskCustomer').value.trim() || 'Unbekannt';
+    const city     = document.getElementById('newTaskCity').value.trim()     || '';
+    const bValue   = document.getElementById('newTaskValue').value           || 'MED';
+    const skillsRaw = document.getElementById('newTaskSkills').value         || '';
+    const skills   = skillsRaw.split(',').map(s => s.trim()).filter(s => s);
+    const startVal = document.getElementById('newTaskStart').value;
+    const dueDate  = startVal ? new Date(startVal).toISOString() : new Date().toISOString();
+
+    const newId     = generateUniqueId();
+    const newTaskId = generateUniqueId();
+
+    const newProject = {
+        id: newId, name: 'Projekt – ' + customer, project_nr: newId.toString(),
+        type_id: 56960, type_name: '🧱 Projekte',
+        step_id: 684112, step_name: '🆕 Neue Projekte',
+        measure_id: 6464, measure_name: 'Projekt',
+        partner_id: 163178, partner_name: 'Cliford Nchotie',
+        customer_name: customer, address: { city: city },
+        task: { id: newTaskId, title: title, due_date: dueDate }
+    };
+
+    if (!window.HERO_DATA.system_data.projects) window.HERO_DATA.system_data.projects = [];
+    window.HERO_DATA.system_data.projects.push(newProject);
+
+    const ext = window.HERO_DATA.system_data.custom_data_layer?.tasks_extension;
+    if (ext) {
+        if (ext.business_value_schema)  ext.business_value_schema.mapping.push({ task_id: newTaskId, business_value: bValue });
+        if (ext.required_skills_schema) ext.required_skills_schema.mapping.push({ task_id: newTaskId, required_skills: skills });
+    }
+
+    await saveToServer();
+    loadDataAndRender();
+    closeAddTaskModal();
+
+    // Clear fields
+    ['newTaskTitle','newTaskCustomer','newTaskCity','newTaskSkills','newTaskDesc'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+});
+
+// =============================================
+// SAVE TO SERVER
+// =============================================
 async function saveToServer() {
     try {
         await fetch('http://localhost:8000/api/save', {
@@ -366,57 +716,12 @@ async function saveToServer() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(window.HERO_DATA)
         });
-        console.log('Successfully saved to HERO_data.json via Python backend!');
     } catch(err) {
-        console.error('Failed to save to python server:', err);
+        console.warn('Save to server failed (offline?):', err);
     }
 }
 
-document.getElementById('btnSaveTask').addEventListener('click', async () => {
-    const title = document.getElementById('newTaskTitle').value || 'New Task';
-    const customer = document.getElementById('newTaskCustomer').value || 'Unknown';
-    const city = document.getElementById('newTaskCity').value || '';
-    const bValue = document.getElementById('newTaskValue').value || 'MED';
-    const skillsRaw = document.getElementById('newTaskSkills').value || '';
-    const skills = skillsRaw.split(',').map(s => s.trim()).filter(s => s);
-    
-    // Generate new unique ID for hackathon speed
-    const newId = 20000000 + Math.floor(Math.random() * 10000);
-    const newTaskId = 200000 + Math.floor(Math.random() * 10000);
-    
-    const newProject = {
-        id: newId,
-        name: "Projekt - " + customer,
-        project_nr: newId.toString(),
-        type_id: 56960,
-        type_name: "🧱 Projekte",
-        step_id: 684112,
-        step_name: "🆕 Neue Projekte",
-        measure_id: 6464,
-        measure_name: "Projekt",
-        partner_id: 163178,
-        partner_name: "Cliford Nchotie",
-        customer_name: customer,
-        address: { city: city },
-        task: {
-            id: newTaskId,
-            title: title,
-            due_date: new Date().toISOString()
-        }
-    };
-    
-    // Update core payload
-    if (!window.HERO_DATA.system_data.projects) window.HERO_DATA.system_data.projects = [];
-    window.HERO_DATA.system_data.projects.push(newProject);
-    
-    // Update extended custom layers correctly
-    const ext = window.HERO_DATA.system_data.custom_data_layer.tasks_extension;
-    if (ext) {
-        if (ext.business_value_schema) ext.business_value_schema.mapping.push({ task_id: newTaskId, business_value: bValue });
-        if (ext.required_skills_schema) ext.required_skills_schema.mapping.push({ task_id: newTaskId, required_skills: skills });
-    }
-    
-    await saveToServer();
-    loadDataAndRender();
-    addModalOverlay.classList.add('hidden');
-});
+// =============================================
+// BOOT
+// =============================================
+loadDataAndRender();

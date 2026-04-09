@@ -1,120 +1,255 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HERO Data Architect - Chaos Dashboard</title>
-    <!-- SEO meta tags -->
+    <title>HERO Chaos Dashboard</title>
     <meta name="description" content="Dashboard visualizing project matches and tasks in the HERO Chaos Environment.">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="app" class="dashboard-container">
-        <header class="top-nav">
-            <div class="logo">
-                <h1>HERO <span>Chaos Dashboard</span></h1>
+    <div id="app" class="app-container">
+
+        <!-- Sticky Top Bar -->
+        <div class="top-bar">
+            <header class="app-header">
+                <h1 class="header-title">Termine</h1>
+                <div class="header-actions">
+                    <button class="icon-btn" id="btnRefresh" title="Aktualisieren">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                    </button>
+                    <div class="status-pill">
+                        <span class="status-dot pulsing"></span> Live
+                    </div>
+                </div>
+            </header>
+
+            <div class="search-wrapper">
+                <div class="search-bar">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    <input type="text" id="searchInput" class="search-input" placeholder="Suchen" />
+                </div>
             </div>
-            <div class="status-indicator">
-                <span class="status-dot pulsing"></span> Live Environment
+
+            <div class="tab-bar">
+                <button class="tab-btn active" id="tabListe" data-tab="liste">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                    Liste
+                </button>
+                <button class="tab-btn" id="tabKalender" data-tab="kalender">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                    Kalender
+                </button>
             </div>
-        </header>
-        
-        <main class="dashboard-grid">
-            <!-- Sidebar: Stats / Triggers -->
-            <aside class="dashboard-sidebar glass-panel">
-                <h2>Chaos Triggers</h2>
-                <div class="trigger-list" id="triggerList">
-                    <button class="btn trigger-btn" id="btnSickUser">Trigger: Sick User</button>
-                    <button class="btn trigger-btn" id="btnOverrun">Trigger: Task Overrun</button>
-                    <button class="btn trigger-btn" id="btnFlood">Trigger: Emergency Flood</button>
+        </div>
+
+        <!-- Main Content -->
+        <main class="app-content">
+            <!-- Liste View -->
+            <div id="listeView" class="view-panel">
+                <div id="taskList" class="task-list"></div>
+                <div id="emptyState" class="empty-state hidden">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                    <p>Keine Termine gefunden</p>
                 </div>
-            </aside>
-            
-            <!-- Main Content Area: Tasks / Projects -->
-            <section class="main-content">
-                <div class="header-split">
-                    <h2>Active Workload <span id="taskCount">(0)</span></h2>
-                    <button class="btn btn-primary" id="btnOpenAddTask">➕ New Task</button>
-                </div>
-                <div class="task-grid" id="taskContainer">
-                    <!-- Tasks will be injected here via app.js -->
-                </div>
-            </section>
+            </div>
+
+            <!-- Kalender View -->
+            <div id="kalenderView" class="view-panel hidden">
+                <div id="calendarWidget" class="calendar-widget"></div>
+                <div id="calendarDayTasks"></div>
+            </div>
         </main>
+
+        <!-- Bottom Navigation -->
+        <nav class="bottom-nav">
+            <button class="nav-item">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                <span>Start</span>
+            </button>
+            <button class="nav-item">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                <span>Projekte</span>
+            </button>
+            <button class="nav-item active">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                <span>Termine</span>
+            </button>
+            <button class="nav-item">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                <span>Zeiterfassung</span>
+            </button>
+        </nav>
+
+        <!-- FAB Speed Dial -->
+        <div class="fab-container" id="fabContainer">
+            <div class="fab-menu" id="fabMenu">
+                <div class="fab-option" id="fabNewTask">
+                    <span class="fab-label">Neuer Termin</span>
+                    <button class="fab-mini-btn" tabindex="-1">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="12" y1="14" x2="12" y2="18"></line><line x1="10" y1="16" x2="14" y2="16"></line></svg>
+                    </button>
+                </div>
+                <div class="fab-option" id="fabChaosOption">
+                    <span class="fab-label">Chaos Auslöser</span>
+                    <button class="fab-mini-btn fab-mini-danger" tabindex="-1">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                    </button>
+                </div>
+            </div>
+            <button class="fab-btn" id="fabMain" aria-label="Neu erstellen">
+                <svg id="fabIcon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+        </div>
     </div>
-    
+
+    <!-- Chaos Triggers Bottom Sheet -->
+    <div id="chaosOverlay" class="sheet-overlay hidden"></div>
+    <div id="chaosSheet" class="bottom-sheet hidden">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
+            <h3>Chaos Auslöser</h3>
+            <button class="icon-btn" id="closeChaosSheet">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+        <div class="sheet-body">
+            <button class="chaos-btn chaos-danger" id="btnSickUser">
+                <div class="chaos-icon">🤒</div>
+                <div class="chaos-info">
+                    <strong>Kranker Mitarbeiter</strong>
+                    <span>Techniker fällt aus – Aufgaben neu verteilen</span>
+                </div>
+                <svg class="chaos-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+            <button class="chaos-btn chaos-warning" id="btnOverrun">
+                <div class="chaos-icon">⏰</div>
+                <div class="chaos-info">
+                    <strong>Zeitüberschreitung</strong>
+                    <span>Aufgabe dauert länger als geplant</span>
+                </div>
+                <svg class="chaos-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+            <button class="chaos-btn chaos-danger" id="btnFlood">
+                <div class="chaos-icon">🚨</div>
+                <div class="chaos-info">
+                    <strong>Notfall-Einsatz</strong>
+                    <span>Dringende neue Aufgabe eingetroffen</span>
+                </div>
+                <svg class="chaos-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+        </div>
+    </div>
+
     <!-- AI Dispatch Modal -->
     <div id="aiModalOverlay" class="modal-overlay hidden">
-        <div class="modal-panel glass-panel">
+        <div class="modal-panel">
             <div class="modal-header">
-                <h3>AI Dispatch Engine</h3>
-                <button id="closeModalBtn" class="close-btn">&times;</button>
+                <h3>KI Dispatch Engine</h3>
+                <button id="closeModalBtn" class="icon-btn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
             </div>
             <div class="modal-body">
                 <div id="aiLoading" class="ai-state active">
                     <div class="spinner"></div>
-                    <p>Consulting AI Engine for optimal route...</p>
+                    <p>KI berechnet optimale Zuweisung...</p>
                 </div>
                 <div id="aiResolution" class="ai-state hidden">
-                    <p>AI Suggestion found for Task <strong id="modalTaskId"></strong>:</p>
+                    <p class="modal-subtitle">Vorschlag für Aufgabe <strong id="modalTaskId"></strong></p>
                     <div class="suggestion-card">
-                        <div class="s-row"><span>New Technician:</span> <strong id="modalTech" class="highlight-tech"></strong></div>
-                        <div class="s-row"><span>New Timeline:</span> <strong id="modalTime"></strong></div>
-                        <div class="s-row" style="flex-direction: column; align-items: flex-start; margin-top: 1rem;">
-                            <span style="margin-bottom: 0.25rem;">AI Reasoning:</span>
-                            <p id="modalReasoning" style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;"></p>
+                        <div class="s-row">
+                            <span>Neuer Techniker</span>
+                            <strong id="modalTech" class="highlight-tech"></strong>
+                        </div>
+                        <div class="s-row">
+                            <span>Neuer Termin</span>
+                            <strong id="modalTime"></strong>
+                        </div>
+                        <div class="s-row s-reasoning">
+                            <span>KI-Begründung</span>
+                            <p id="modalReasoning"></p>
                         </div>
                     </div>
                 </div>
             </div>
             <div id="aiActions" class="modal-actions hidden">
-                <button class="btn btn-outline" id="btnReject">Reject (Find alternatives)</button>
-                <button class="btn btn-primary" id="btnApprove">Approve & Assign</button>
+                <button class="btn btn-outline" id="btnReject">Ablehnen</button>
+                <button class="btn btn-primary" id="btnApprove">Bestätigen &amp; Zuweisen</button>
             </div>
         </div>
     </div>
 
-    <!-- Add Task Modal -->
+    <!-- Add Task / Termin erstellen Modal -->
     <div id="addTaskModalOverlay" class="modal-overlay hidden">
-        <div class="modal-panel glass-panel" style="max-width: 500px;">
+        <div class="modal-panel modal-fullscreen">
             <div class="modal-header">
-                <h3>Create New Task</h3>
-                <button id="closeAddModalBtn" class="close-btn">&times;</button>
+                <button class="icon-btn" id="closeAddModalBtn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+                <h3>Termin erstellen</h3>
+                <button class="icon-btn check-btn" id="btnSaveTask">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </button>
             </div>
             <div class="modal-body form-body">
-                <div class="form-group">
-                    <label>Task Title</label>
-                    <input type="text" id="newTaskTitle" class="form-control" placeholder="e.g. Boiler Repair" />
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Customer Name</label>
-                        <input type="text" id="newTaskCustomer" class="form-control" placeholder="e.g. John Doe" />
+                <div class="form-section-label">INFORMATIONEN</div>
+                <div class="form-section">
+                    <div class="form-field">
+                        <input type="text" id="newTaskTitle" class="form-input-plain" placeholder="Titel" />
                     </div>
-                    <div class="form-group">
-                        <label>City</label>
-                        <input type="text" id="newTaskCity" class="form-control" placeholder="e.g. Berlin" />
+                    <div class="form-field form-field-divider">
+                        <input type="text" id="newTaskDesc" class="form-input-plain" placeholder="Beschreibung" />
                     </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Business Value</label>
-                        <select id="newTaskValue" class="form-control">
-                            <option value="HIGH">HIGH</option>
-                            <option value="MED" selected>MED</option>
-                            <option value="LOW">LOW</option>
+                    <div class="form-field form-field-row">
+                        <label>Kategorie</label>
+                        <select id="newTaskValue" class="form-select">
+                            <option value="HIGH">Dringend</option>
+                            <option value="MED" selected>Umsetzung</option>
+                            <option value="LOW">Niedrig</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label>Required Skills (comma separated)</label>
-                        <input type="text" id="newTaskSkills" class="form-control" placeholder="electrical, solar, repair" />
+                    <div class="form-field form-field-row">
+                        <label>Projekt / Kunde</label>
+                        <input type="text" id="newTaskCustomer" class="form-input-right" placeholder="Kunde wählen..." />
                     </div>
                 </div>
-            </div>
-            <div class="modal-actions">
-                <button class="btn btn-outline" id="btnCancelAdd">Cancel</button>
-                <button class="btn btn-primary" id="btnSaveTask">Save Task</button>
+
+                <div class="form-section-label">TERMINIERUNG</div>
+                <div class="form-section">
+                    <div class="form-field form-field-row">
+                        <label>Start</label>
+                        <input type="datetime-local" id="newTaskStart" class="form-input-right" />
+                    </div>
+                    <div class="form-field form-field-row">
+                        <label>Ende</label>
+                        <input type="datetime-local" id="newTaskEnd" class="form-input-right" />
+                    </div>
+                </div>
+
+                <div class="form-section-label">MITARBEITERZUWEISUNG</div>
+                <div class="form-section">
+                    <div class="form-field form-field-row">
+                        <label>Mitarbeiter</label>
+                        <div class="form-value-arrow">
+                            <span>Ich</span>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section-label">RESSOURCEN</div>
+                <div class="form-section">
+                    <div class="form-field form-field-row">
+                        <label>Fähigkeiten</label>
+                        <input type="text" id="newTaskSkills" class="form-input-right" placeholder="electrical, solar..." />
+                    </div>
+                    <div class="form-field form-field-row">
+                        <label>Stadt</label>
+                        <input type="text" id="newTaskCity" class="form-input-right" placeholder="z.B. Berlin" />
+                    </div>
+                </div>
             </div>
         </div>
     </div>
