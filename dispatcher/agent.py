@@ -1,8 +1,13 @@
 import os
 import json
+from dotenv import load_dotenv
+load_dotenv() # Load variables from .env
 from pydantic import BaseModel, Field
 from typing import List, Optional
-from openai import OpenAI
+
+# Import Google GenAI SDK (google-genai)
+from google import genai
+from google.genai import types
 
 # ---------------------------------------------------------
 # Output Contract: Sent back to UI/Data Layer
@@ -25,8 +30,10 @@ class DispatchResult(BaseModel):
 # ---------------------------------------------------------
 def run_dispatcher(payload_json: str) -> str:
     """Takes the exact DispatcherInputPayload format and returns a DispatchResult format."""
-    api_key = os.getenv("OPENAI_API_KEY")
-    client = OpenAI(api_key=api_key)
+    
+    # Intialize Google GenAI client (Retrieves GEMINI_API_KEY from environment)
+    api_key = os.getenv("GEMINI_API_KEY")
+    client = genai.Client(api_key=api_key)
     
     system_prompt = """
     You are an expert dispatcher for a trades business executing the High-Stakes Chaos protocol.
@@ -45,16 +52,18 @@ def run_dispatcher(payload_json: str) -> str:
     """
 
     try:
-        response = client.beta.chat.completions.parse(
-            model="gpt-4o-2024-08-06",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            response_format=DispatchResult
+        # Utilize Gemini with strict JSON Structured Outputs
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[system_prompt, user_prompt],
+             config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=DispatchResult,
+                temperature=0.1 # Keep logic extremely rigid 
+            )
         )
-
-        return response.choices[0].message.parsed.json()
+        # response.text is automatically formatted as a JSON string matching DispatchResult
+        return response.text
 
     except Exception as e:
         print(f"Dispatcher failed: {e}")
@@ -65,7 +74,6 @@ def run_dispatcher(payload_json: str) -> str:
 # ---------------------------------------------------------
 if __name__ == "__main__":
     
-    # Matching the exact schema defined in data_schema.json + scenario.md
     mock_payload = {
         "trigger_event": {
             "event_type": "worker_breakdown",
@@ -101,10 +109,10 @@ if __name__ == "__main__":
         ]
     }
     
-    if os.getenv("OPENAI_API_KEY") and os.getenv("OPENAI_API_KEY") != "your_key_here":
-        print("Running High-Stakes Chaos Protocol with OpenAI Engine...\n")
+    if os.getenv("GEMINI_API_KEY") and os.getenv("GEMINI_API_KEY") != "your_key_here":
+        print("Running High-Stakes Chaos Protocol with Google GenAI SDK...\n")
         result = run_dispatcher(json.dumps(mock_payload))
         print("Final Output JSON (To be sent back to UI/HERO):")
-        print(json.dumps(json.loads(result), indent=2))
+        print(result) # Result is already a validated JSON string
     else:
-        print("Skipping run. OPENAI_API_KEY environment variable is not configured.")
+        print("Skipping run. GEMINI_API_KEY environment variable is not configured.")
