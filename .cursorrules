@@ -1,0 +1,33 @@
+# HERO Data Architect - AI Rules
+
+## Architecture & Separation of Concerns 
+This repository follows a strict 3-Agent microservices pattern. When modifying or generating code, adhere strictly to these directory boundaries:
+
+### 1. `/api` (Agent 1: Data Architect)
+**Purpose:** Handles all communication with the HERO GraphQL API.
+**Rules:** 
+- Only place data ingestion, data fetching, and mutations here.
+- Do NOT include complex business logic or UI components.
+- Rely on `API_ENDPOINTS.md` for schemas.
+
+### 2. `/engine` (Agent 2: Dispatcher)
+**Purpose:** The "brain" of the operation. Contains AI reasoning and logic.
+**Rules:**
+- Use this to process data pulled from `/api`.
+- Responsible for calculating travel-time math and handling "Chaos" logic.
+
+### 3. `/web` (Agent 3: UI Developer)
+**Purpose:** The frontend presentation layer.
+**Rules:**
+- Use React and TailwindCSS.
+- This layer should only present data and send user intents to the `/engine` or `/api`.
+
+## Core Objectives (The Chaos Environment)
+1. **Phase 1 (Base):** Establish standard data (3 Contacts, 3 Projects, 10 Tasks) via mutations.
+2. **Phase 2 (Chaos):** Inject unexpected events:
+   - Sick users (technician unavailabilities)
+   - Overrun tasks ("EMERGENCY: Pipe burst")
+   - New sudden leads ("Emergency Flood" without assignments)
+
+## Authentication
+Must use the `Authorization: Bearer [TOKEN]` header for all API requests.
