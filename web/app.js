@@ -135,10 +135,20 @@ document.getElementById('btnSickUser').addEventListener('click', (e) => {
         document.getElementById('btnSickUser').innerText = 'Triggered: Tech Sick';
         mockTasks = mockTasks.map(t => {
             if (evt.affected_tasks.includes(t.rawId) || t.tech === 'Cliford Nchotie') {
+                const proj = window.HERO_DATA.system_data.projects.find(p => p.task && p.task.id === t.rawId);
+                if (proj) {
+                    proj.partner_name = 'UNASSIGNED (Sick)';
+                    // Update extension logic offline
+                    const ext = window.HERO_DATA.system_data.custom_data_layer.technicians_extension;
+                    if(ext && ext.status_schema && ext.status_schema.mapping[0]) {
+                        ext.status_schema.mapping[0].status = 'sick';
+                    }
+                }
                 return { ...t, status: 'delayed', tech: 'UNASSIGNED (Sick)' };
             }
             return t;
         });
+        saveToServer();
         renderTasks(mockTasks);
     }
 });
@@ -152,10 +162,14 @@ document.getElementById('btnOverrun').addEventListener('click', (e) => {
         document.getElementById('btnOverrun').innerText = 'Triggered: Delay Event';
         mockTasks = mockTasks.map(t => {
             if (evt.affected_tasks.includes(t.rawId)) {
+                const proj = window.HERO_DATA.system_data.projects.find(p => p.task && p.task.id === t.rawId);
+                if(proj && proj.task) proj.task.title = proj.task.title + ' [DELAYED]';
+                
                 return { ...t, title: t.title + ' [DELAYED]', status: 'delayed', date: t.date + ' (+2h)' };
             }
             return t;
         });
+        saveToServer();
         renderTasks(mockTasks);
     }
 });
@@ -167,23 +181,48 @@ document.getElementById('btnFlood').addEventListener('click', (e) => {
     const evt = triggers.find(t => t.event_type === 'new_urgent_task');
     if (evt) {
         document.getElementById('btnFlood').innerText = 'Triggered: Urgent Task';
-        const newEmergency = {
-            id: 'TSK-999',
-            rawId: 999,
-            title: 'EMERGENCY: Immediate Repair',
-            tech: 'UNASSIGNED',
-            customer: 'Jane Smith',
-            city: 'Hamburg',
-            date: 'ASAP',
-            status: 'emergency',
-            businessValue: 'HIGH',
-            skills: ['repair', 'electrical']
-        };
+        
         // Avoid adding multiple times
-        if(!mockTasks.find(t => t.id === 'TSK-999')) {
-            mockTasks = [newEmergency, ...mockTasks];
+        if(!window.HERO_DATA.system_data.projects.find(p => p.task && p.task.id === 999)) {
+            const newProject = {
+                id: 10050999,
+                name: "Service – Jane Smith (EMERGENCY)",
+                project_nr: "10050999",
+                type_id: 56961,
+                type_name: "🛠️ Service",
+                step_id: 684123,
+                step_name: "🆕 Offen",
+                measure_id: 6464,
+                measure_name: "Projekt",
+                partner_id: null,
+                partner_name: "UNASSIGNED",
+                customer_id: 6803553,
+                customer_name: "Jane Smith",
+                address: {
+                    street: "Mönckebergstraße 7",
+                    zipcode: "20095",
+                    city: "Hamburg"
+                },
+                task: {
+                    id: 999,
+                    title: "EMERGENCY: Immediate Repair",
+                    due_date: new Date().toISOString()
+                }
+            };
+            
+            // Push to core models
+            window.HERO_DATA.system_data.projects.unshift(newProject); // add to top
+            
+            // Push to Schema models
+            const ext = window.HERO_DATA.system_data.custom_data_layer.tasks_extension;
+            if (ext) {
+                if (ext.business_value_schema) ext.business_value_schema.mapping.push({ task_id: 999, business_value: 'HIGH' });
+                if (ext.required_skills_schema) ext.required_skills_schema.mapping.push({ task_id: 999, required_skills: ['repair', 'electrical'] });
+            }
+            
+            saveToServer();
+            loadDataAndRender();
         }
-        renderTasks(mockTasks);
     }
 });
 
@@ -209,7 +248,7 @@ function closeModal() {
     aiOverlay.classList.add('hidden');
 }
 
-function triggerAiCalculation() {
+async function triggerAiCalculation() {
     // Reset UI to loading
     stateLoading.classList.add('active');
     stateLoading.classList.remove('hidden');
@@ -217,32 +256,64 @@ function triggerAiCalculation() {
     stateResolution.classList.remove('active');
     actionContainer.classList.add('hidden');
     
-    // Simulate AI Latency
-    setTimeout(() => {
-        resolveAiSuggestion();
-    }, 1500);
+    try {
+        const response = await fetch('http://localhost:8000/api/dispatch_task', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task_id: currentActiveTaskId })
+        });
+        const data = await response.json();
+        
+        if (data.error) throw new Error(data.error);
+        
+        if (data.assignments && data.assignments.length > 0) {
+            resolveAiSuggestion(data.assignments[0]);
+        } else {
+            resolveAiSuggestion({
+                new_technician_id: "UNASSIGNED",
+                scheduled_time: "No Slot Available",
+                human_explanation: "The AI could not find a viable assignment for this task."
+            });
+        }
+    } catch(err) {
+        console.error("AI Dispatch failed:", err);
+        // Fallback for UI testing if server is down
+        resolveAiSuggestion({
+            new_technician_id: "Fallback Tech B",
+            scheduled_time: "Oct 24, 05:00 PM",
+            human_explanation: "Server offline - showing fallback mock assignment."
+        });
+    }
 }
 
-function resolveAiSuggestion() {
+function resolveAiSuggestion(aiData) {
     stateLoading.classList.remove('active');
     stateLoading.classList.add('hidden');
     
-    // Generate simulated Mock AI Data based on iterations
-    const techOptions = ['Technician D (Rerouted)', 'Technician B (Overtime)', 'Technician C (Emergency dispatch)'];
-    const timeOptions = ['Oct 24, 04:15 PM', 'Oct 24, 05:00 PM', 'Oct 25, 08:00 AM (Next Day)'];
-    
-    // Pick based on how many times user tapped "Reject"
-    const selectionIdx = rejectCounter % techOptions.length;
+    // Store globally so Approve button can access it
+    // Wait, the API returns a string ID for the tech, we will look up the name offline for visuals.
+    let techName = "UNKNOWN TECH";
+    // Usually we would join this from HERO_DATA, but we'll try to find it
+    const allPartners = window.HERO_DATA?.system_data?.partners || [];
+    const p = allPartners.find(x => String(x.user_id) === String(aiData.new_technician_id));
+    if (p) techName = p.full_name;
+    else if (aiData.new_technician_id) techName = "Technician ID: " + aiData.new_technician_id;
+    else techName = "None";
     
     currentAiSuggestion = {
-        tech: techOptions[selectionIdx],
-        date: timeOptions[selectionIdx]
+        tech: techName,
+        date: aiData.scheduled_time
     };
     
     // Fill Dom
     document.getElementById('modalTaskId').innerText = currentActiveTaskId;
     document.getElementById('modalTech').innerText = currentAiSuggestion.tech;
     document.getElementById('modalTime').innerText = currentAiSuggestion.date;
+    
+    const reasonDOM = document.getElementById('modalReasoning');
+    if (reasonDOM) {
+        reasonDOM.innerText = aiData.human_explanation || "No explanation provided.";
+    }
     
     stateResolution.classList.remove('hidden');
     stateResolution.classList.add('active');
@@ -254,20 +325,98 @@ document.getElementById('btnReject').addEventListener('click', () => {
     rejectCounter++;
     triggerAiCalculation();
 });
-document.getElementById('btnApprove').addEventListener('click', () => {
-    // Apply changes map to the master data
-    mockTasks = mockTasks.map(t => {
-        if(t.id === currentActiveTaskId) {
-            return {
-                ...t,
-                tech: currentAiSuggestion.tech,
-                date: currentAiSuggestion.date,
-                status: 'reassigned'
-            };
-        }
-        return t;
-    });
+document.getElementById('btnApprove').addEventListener('click', async () => {
+    // 1. Mutate core HERO_DATA
+    const rawTaskId = parseInt(currentActiveTaskId.replace('TSK-', ''));
+    const proj = window.HERO_DATA.system_data.projects.find(p => p.task && p.task.id === rawTaskId);
+    if (proj) {
+        proj.partner_name = currentAiSuggestion.tech;
+        // In a real app we'd convert the "Oct 24, 04:15 PM" string string back to ISO, but for the hackathon we simply mutate.
+    }
     
-    renderTasks(mockTasks);
+    // 2. Save directly to Python server
+    await saveToServer();
+    
+    // 3. Reactively update UI
+    loadDataAndRender();
     closeModal();
+});
+
+// ==========================================
+// API Helper & Add Task Modal
+// ==========================================
+
+const addModalOverlay = document.getElementById('addTaskModalOverlay');
+if (addModalOverlay) {
+    document.getElementById('btnOpenAddTask').addEventListener('click', () => {
+        addModalOverlay.classList.remove('hidden');
+    });
+    document.getElementById('closeAddModalBtn').addEventListener('click', () => {
+        addModalOverlay.classList.add('hidden');
+    });
+    document.getElementById('btnCancelAdd').addEventListener('click', () => {
+        addModalOverlay.classList.add('hidden');
+    });
+}
+
+async function saveToServer() {
+    try {
+        await fetch('http://localhost:8000/api/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(window.HERO_DATA)
+        });
+        console.log('Successfully saved to HERO_data.json via Python backend!');
+    } catch(err) {
+        console.error('Failed to save to python server:', err);
+    }
+}
+
+document.getElementById('btnSaveTask').addEventListener('click', async () => {
+    const title = document.getElementById('newTaskTitle').value || 'New Task';
+    const customer = document.getElementById('newTaskCustomer').value || 'Unknown';
+    const city = document.getElementById('newTaskCity').value || '';
+    const bValue = document.getElementById('newTaskValue').value || 'MED';
+    const skillsRaw = document.getElementById('newTaskSkills').value || '';
+    const skills = skillsRaw.split(',').map(s => s.trim()).filter(s => s);
+    
+    // Generate new unique ID for hackathon speed
+    const newId = 20000000 + Math.floor(Math.random() * 10000);
+    const newTaskId = 200000 + Math.floor(Math.random() * 10000);
+    
+    const newProject = {
+        id: newId,
+        name: "Projekt - " + customer,
+        project_nr: newId.toString(),
+        type_id: 56960,
+        type_name: "🧱 Projekte",
+        step_id: 684112,
+        step_name: "🆕 Neue Projekte",
+        measure_id: 6464,
+        measure_name: "Projekt",
+        partner_id: 163178,
+        partner_name: "Cliford Nchotie",
+        customer_name: customer,
+        address: { city: city },
+        task: {
+            id: newTaskId,
+            title: title,
+            due_date: new Date().toISOString()
+        }
+    };
+    
+    // Update core payload
+    if (!window.HERO_DATA.system_data.projects) window.HERO_DATA.system_data.projects = [];
+    window.HERO_DATA.system_data.projects.push(newProject);
+    
+    // Update extended custom layers correctly
+    const ext = window.HERO_DATA.system_data.custom_data_layer.tasks_extension;
+    if (ext) {
+        if (ext.business_value_schema) ext.business_value_schema.mapping.push({ task_id: newTaskId, business_value: bValue });
+        if (ext.required_skills_schema) ext.required_skills_schema.mapping.push({ task_id: newTaskId, required_skills: skills });
+    }
+    
+    await saveToServer();
+    loadDataAndRender();
+    addModalOverlay.classList.add('hidden');
 });

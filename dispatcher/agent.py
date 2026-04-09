@@ -147,6 +147,61 @@ def run_dispatcher_with_mock(filepath: str) -> str:
     payload = build_payload_from_hero_data(filepath)
     return run_dispatcher(json.dumps(payload))
 
+def run_dispatcher_for_single_task(filepath: str, task_id: str) -> str:
+    """Isolates the AI reassignment specifically for one task."""
+    payload = build_payload_from_hero_data(filepath)
+    
+    # Strip "TSK-" prefix just in case the UI passes it
+    clean_task_id = str(task_id).replace("TSK-", "")
+    
+    # Filter the uncompleted_tasks down to only the requested one
+    target_task = next((t for t in payload["uncompleted_tasks"] if str(t["id"]) == clean_task_id), None)
+    
+    if not target_task:
+        return json.dumps({"error": f"Task {clean_task_id} not found."})
+        
+    payload["uncompleted_tasks"] = [target_task]
+    payload["trigger_event"] = {"event_type": "manual_reassignment", "target_id": clean_task_id, "message": "Manual UI request for specific task"}
+    
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return json.dumps({"error": "GEMINI_API_KEY not configured"})
+        
+    client = genai.Client(api_key=api_key)
+    
+    system_prompt = """
+    You are an expert dispatcher for a trades business.
+    A specific task needs immediate attention and reassignment.
+    Look at the single task provided and the available technicians.
+    Select the optimal technician to assign based on:
+    1. Skill matching required for the task.
+    2. Geographic matching if possible.
+    3. Ignoring currently sick/unavailable technicians explicitly.
+    Provide a human-readable explanation of why this specific tech was chosen over others.
+    """
+    
+    user_prompt = f"""
+    Find the best technician for this dataset:
+    {json.dumps(payload, indent=2)}
+    
+    Calculate the optimal reroute and generate the structured JSON format representing this single reassignment.
+    """
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[system_prompt, user_prompt],
+             config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=DispatchResult,
+                temperature=0.1
+            )
+        )
+        return response.text
+    except Exception as e:
+        print(f"Task Dispatcher failed: {e}")
+        return json.dumps({"error": str(e)})
+
 # ---------------------------------------------------------
 # Local Scenario Testing (The High-Stakes Breakdown MVP)
 # ---------------------------------------------------------
