@@ -1,0 +1,7 @@
+/
+├── .env.example
+├── README.md
+├── DEVELOPMENT.md
+├── /api           # Agent 1: Data Architect (GraphQL Scripts)
+├── /engine        # Agent 2: Dispatcher (AI Reasoning & Logic)
+└── /web           # Agent 3: UI Developer (React/Tailwind App)
