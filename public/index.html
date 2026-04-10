@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>VoltWerk Copilot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body data-phase="idle">
+  <div class="app">
+
+    <header class="header">
+      <div class="brand">
+        <span class="live-dot" id="live-dot"></span>
+        <span class="brand-name">VoltWerk</span>
+      </div>
+      <button class="board-btn" id="board-btn" type="button">
+        <span id="jobs-count">–</span>&nbsp;Jobs
+      </button>
+    </header>
+
+    <main class="stage">
+      <div class="orb-wrap">
+        <div class="orb-rings">
+          <span></span><span></span><span></span>
+        </div>
+        <button class="orb" id="orb" type="button" aria-label="Tap to speak">
+          <span class="orb-icon" id="orb-icon"></span>
+        </button>
+      </div>
+
+      <p class="stage-hint" id="stage-hint">What's the problem?</p>
+
+      <div class="wave-zone" id="wave-zone" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span><span></span>
+      </div>
+
+      <div class="text-zone" id="text-zone">
+        <textarea id="text-input" placeholder="Or type it here..." rows="2" autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+        <button class="go-btn" id="go-btn" type="button">Go &rarr;</button>
+      </div>
+    </main>
+
+    <!-- Decision sheet (slides up when result is ready) -->
+    <div class="sheet" id="sheet" aria-hidden="true" role="dialog" aria-label="Dispatch decision">
+      <div class="sheet-handle"></div>
+      <div class="sheet-body">
+        <div class="decision-meta">
+          <span class="risk-chip" id="risk-chip">LOW RISK</span>
+          <span class="confidence-text" id="confidence-text">–</span>
+        </div>
+        <h2 class="decision-headline" id="decision-headline"></h2>
+        <p class="decision-why" id="decision-why"></p>
+        <p class="decision-residual" id="decision-residual"></p>
+        <div class="sheet-actions">
+          <button class="confirm-btn" id="confirm-btn" type="button">Confirm</button>
+          <div class="sheet-secondary">
+            <button class="secondary-btn" id="replay-btn" type="button">Replay</button>
+            <button class="secondary-btn" id="cancel-btn" type="button">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Board drawer (slides in from right) -->
+    <div class="drawer" id="drawer" aria-hidden="true">
+      <div class="drawer-inner">
+        <div class="drawer-head">
+          <div>
+            <p class="drawer-eyebrow">Live board</p>
+            <h3 class="drawer-title">Today's jobs</h3>
+          </div>
+          <button class="close-btn" id="close-drawer" type="button" aria-label="Close">&#x2715;</button>
+        </div>
+        <div class="drawer-cols">
+          <div class="drawer-col">
+            <div class="col-label">At risk</div>
+            <div id="jobs-list" class="card-stack"></div>
+          </div>
+          <div class="drawer-col">
+            <div class="col-label">Crew</div>
+            <div id="crew-list" class="card-stack"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="drawer-overlay" id="drawer-overlay"></div>
+
+  </div>
+  <script src="/main.js"></script>
+</body>
+</html>
