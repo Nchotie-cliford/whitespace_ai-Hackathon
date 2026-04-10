@@ -5,6 +5,7 @@ const {
   testStrongBaselineBeatsVagueManualReview,
   testDailyBriefGetsDailyDisplay,
   testArrivalBriefGetsArrivalDisplay,
+  testArrivalBriefPrefersGroundedBaselineNarrative,
   testHandoverSummaryGetsHandoverDisplay,
 } = require("./dispatchAiService.test");
 
@@ -39,6 +40,7 @@ async function main() {
     ["ai service keeps strong grounded fallback", testStrongBaselineBeatsVagueManualReview],
     ["daily brief gets daily display", testDailyBriefGetsDailyDisplay],
     ["arrival brief gets arrival display", testArrivalBriefGetsArrivalDisplay],
+    ["arrival brief prefers grounded baseline narrative", testArrivalBriefPrefersGroundedBaselineNarrative],
     ["handover summary gets handover display", testHandoverSummaryGetsHandoverDisplay],
   ];
 

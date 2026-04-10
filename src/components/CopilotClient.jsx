@@ -104,6 +104,9 @@ function getElevenLabsLanguageCode(locale) {
   return mapping[language] || ''
 }
 
+const SILENT_AUDIO_DATA_URI =
+  'data:audio/mp3;base64,SUQzAwAAAAAAF1RTU0UAAAAPAAADTGF2ZjU4LjMyLjEwMAAAAAAAAAAAAAAA//uQxAADBzQAP9AAAaQAAAACAAADSAAAAAEAAACgAgAATGF2YzU4LjU0AAAAAAAAAAAAAAAAJAAAAAAAAAAA//uQxAADBzQAP9AAAaQAAAACAAADSAAAAAEAAACgAgAA'
+
 export default function CopilotClient() {
   const [phase, setPhase]               = useState('idle')
   const [snapshot, setSnapshot]         = useState(null)
@@ -120,6 +123,7 @@ export default function CopilotClient() {
   const mediaRecRef     = useRef(null)   // MediaRecorder instance
   const chunksRef       = useRef([])     // audio chunks collected during recording
   const streamRef       = useRef(null)   // getUserMedia stream (so we can stop tracks)
+  const audioUnlockedRef = useRef(false)
 
   // ── Keep phaseRef + body attr in sync ──
   const setPhaseSync = useCallback((p) => {
@@ -165,6 +169,31 @@ export default function CopilotClient() {
     } catch (_) {}
   }, [])
 
+  const unlockAudioPlayback = useCallback(async () => {
+    if (audioUnlockedRef.current || typeof window === 'undefined') {
+      return
+    }
+
+    try {
+      const unlockAudio = new Audio(SILENT_AUDIO_DATA_URI)
+      unlockAudio.muted = true
+      unlockAudio.playsInline = true
+      await unlockAudio.play()
+      unlockAudio.pause()
+      unlockAudio.currentTime = 0
+      audioUnlockedRef.current = true
+    } catch (_) {}
+
+    try {
+      if (typeof window.AudioContext !== 'undefined') {
+        const ctx = new window.AudioContext()
+        await ctx.resume()
+        await ctx.close()
+        audioUnlockedRef.current = true
+      }
+    } catch (_) {}
+  }, [])
+
   const speakBrief = useCallback(async (text) => {
     try {
       const voiceId = localStorage.getItem('elevenlabs_voice_id') || undefined
@@ -177,6 +206,7 @@ export default function CopilotClient() {
         const blob = await res.blob()
         if (audioRef.current) audioRef.current.pause()
         audioRef.current = new Audio(URL.createObjectURL(blob))
+        audioRef.current.playsInline = true
         try { await audioRef.current.play(); return } catch (_) {}
       }
     } catch (_) {}
@@ -340,8 +370,9 @@ export default function CopilotClient() {
     if (p === 'processing') return
     if (p === 'listening') { stopMic(); return }
     // idle or error
+    unlockAudioPlayback()
     startMic()
-  }, [reset, startMic, stopMic])
+  }, [reset, startMic, stopMic, unlockAudioPlayback])
 
   // ── Spacebar shortcut ──
   useEffect(() => {

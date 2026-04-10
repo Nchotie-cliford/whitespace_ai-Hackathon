@@ -187,6 +187,30 @@ class StubAiClient {
   }
 }
 
+class StubArrivalAiClient {
+  isConfigured() {
+    return true;
+  }
+
+  async resolveIncident() {
+    return {
+      problemSummary: "A different project summary that does not match the grounded arrival context.",
+      cascadeSeverity: "medium",
+      cascadeScore: 42,
+      cascadeExplanation: "Generic explanation.",
+      recommendedAction: {
+        type: "manual_review",
+      },
+      why: ["Generic AI wording."],
+      residualRisk: "Generic AI risk.",
+      confidence: 0.51,
+      dispatcherBrief: "Generic AI brief.",
+      spokenBrief: "Before you arrive, focus on the generic AI summary.",
+      displayMode: "arrival_brief",
+    };
+  }
+}
+
 async function testStrongBaselineBeatsVagueManualReview() {
   const service = new DispatchAiService({
     dashboardService: new StubDashboardService(),
@@ -375,6 +399,23 @@ async function testArrivalBriefGetsArrivalDisplay() {
   assert.ok(result.spokenBrief.includes("Before you arrive"));
 }
 
+async function testArrivalBriefPrefersGroundedBaselineNarrative() {
+  const service = new DispatchAiService({
+    dashboardService: new StubDashboardService(),
+    fallbackService: new StubArrivalFallbackService(),
+    aiClient: new StubArrivalAiClient(),
+  });
+
+  const result = await service.resolveTranscript({
+    transcript: "What should I know before I arrive?",
+  });
+
+  assert.equal(result.requestMode, "arrival_brief");
+  assert.equal(result.problemSummary, "Brief the arriving worker on Dresden Mixed-Use Building Upgrade.");
+  assert.ok(result.dispatcherBrief.includes("Dresden Mixed-Use Building Upgrade is the key focus on arrival."));
+  assert.equal(result.residualRisk, "Keep the outage inside the agreed morning slot.");
+}
+
 async function testHandoverSummaryGetsHandoverDisplay() {
   const service = new DispatchAiService({
     dashboardService: new StubDashboardService(),
@@ -397,5 +438,6 @@ module.exports = {
   testStrongBaselineBeatsVagueManualReview,
   testDailyBriefGetsDailyDisplay,
   testArrivalBriefGetsArrivalDisplay,
+  testArrivalBriefPrefersGroundedBaselineNarrative,
   testHandoverSummaryGetsHandoverDisplay,
 };

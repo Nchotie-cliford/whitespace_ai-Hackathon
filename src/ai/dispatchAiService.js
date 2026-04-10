@@ -325,6 +325,17 @@ class DispatchAiService {
     };
   }
 
+  shouldPreferBaselineNarrative(requestMode) {
+    return [
+      "planning",
+      "status",
+      "summary",
+      "arrival_brief",
+      "daily_brief",
+      "handover_summary",
+    ].includes(requestMode);
+  }
+
   mergeResult({ transcript, baseline, aiResult }) {
     const aiRecommendedAction = aiResult?.recommendedAction || {};
     const baselineAction = baseline.recommendedAction || {};
@@ -356,9 +367,15 @@ class DispatchAiService {
           ? { type: 'manual_review', targetUserId: null, targetUserName: null, dueDate: null }
           : mergedAction;
 
+    const preferBaselineNarrative = this.shouldPreferBaselineNarrative(
+      baseline.requestMode || "action",
+    );
+
     const selectedProblemSummary =
       aiDowngradesStrongBaseline && baseline.matchedTask
         ? `${baseline.matchedTechnician?.full_name || baseline.matchedTask.assigned_to_name || 'The assigned technician'} is delayed for ${baseline.matchedTask.project_name || baseline.matchedTask.project_title || baseline.matchedTask.title}.`
+        : preferBaselineNarrative && baseline.problemSummary
+          ? baseline.problemSummary
         : aiResult.problemSummary ??
           baseline.problemSummary ??
           'Resolve the current field disruption.';
@@ -381,6 +398,8 @@ class DispatchAiService {
     const selectedBrief =
       aiDowngradesStrongBaseline && baseline.dispatcherBrief
         ? baseline.dispatcherBrief
+        : preferBaselineNarrative && baseline.dispatcherBrief
+          ? baseline.dispatcherBrief
         : aiResult.dispatcherBrief ?? baseline.dispatcherBrief;
     const cleanedBrief = actionReassignsToCurrentAssignee
       ? `${baseline.matchedTask?.project_name || 'This task'} needs manual review because no grounded reassignment candidate was confirmed.`
@@ -390,6 +409,8 @@ class DispatchAiService {
         ? 'No reliable reassignment candidate was confirmed, so this case should be reviewed manually.'
         : aiDowngradesStrongBaseline && baseline.residualRisk
           ? baseline.residualRisk
+          : preferBaselineNarrative && baseline.residualRisk
+            ? baseline.residualRisk
           : aiResult.residualRisk ?? baseline.residualRisk;
     const cleanedProblemSummary =
       baseline.requestMode === "planning" && Array.isArray(baseline.affectedProjects)
