@@ -30,6 +30,13 @@ function determineRequestMode(transcript) {
   const text = lower(transcript);
 
   if (
+    /(remove|take off|replace).*(with|instead|swap|send)/.test(text) ||
+    /(replace .* with .*|take .* off .* and .* instead)/.test(text)
+  ) {
+    return "crew_change";
+  }
+
+  if (
     /(take over|taking over|handover|hand over|cover this job|needs to know before taking over|what does .* need to know)/.test(text)
   ) {
     return "handover_summary";
@@ -83,6 +90,44 @@ function findTechnicianMatch(transcript, technicians) {
 
     if (firstName && text.includes(firstName)) {
       score += 2;
+    }
+
+    if (score > bestScore) {
+      best = technician;
+      bestScore = score;
+    }
+  }
+
+  return bestScore > 0 ? best : null;
+}
+
+function extractReplacementTechnician(transcript, technicians, currentTechnician) {
+  const text = lower(transcript);
+  const currentId = currentTechnician?.hero_user_id ?? null;
+  let best = null;
+  let bestScore = 0;
+
+  for (const technician of technicians) {
+    if (currentId !== null && Number(technician.hero_user_id) === Number(currentId)) {
+      continue;
+    }
+
+    const fullName = lower(technician.full_name || technician.name);
+    const firstName = fullName.split(" ")[0];
+    let score = 0;
+
+    if (new RegExp(`(?:replace|with|instead|send)\\s+${fullName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`).test(text)) {
+      score += 6;
+    }
+
+    if (firstName && new RegExp(`(?:replace|with|instead|send)\\s+${firstName}`).test(text)) {
+      score += 4;
+    }
+
+    if (fullName && text.includes(fullName)) {
+      score += 2;
+    } else if (firstName && text.includes(firstName)) {
+      score += 1;
     }
 
     if (score > bestScore) {
@@ -277,6 +322,13 @@ class TranscriptFallbackService {
       transcript,
       snapshot.technicianWorkload || [],
     );
+    const replacementTechnician = requestMode === "crew_change"
+      ? extractReplacementTechnician(
+          transcript,
+          snapshot.technicianWorkload || [],
+          technicianMatch,
+        )
+      : null;
     const affectedProjects = collectAffectedProjects({
       transcript,
       snapshot,
@@ -398,7 +450,19 @@ class TranscriptFallbackService {
     let residualRisk;
     let confidence;
 
-    if (incidentType === "weather_disruption") {
+    if (requestMode === "crew_change" && replacementTechnician) {
+      recommendedAction = {
+        type: "reassign",
+        targetUserId: replacementTechnician.hero_user_id,
+        targetUserName: replacementTechnician.full_name,
+        dueDate: matchedTask.due_date,
+      };
+      residualRisk =
+        replacementTechnician.open_task_count >= 2
+          ? `${replacementTechnician.full_name} may need one later follow-up moved.`
+          : "Residual operational risk is low.";
+      confidence = 0.84;
+    } else if (incidentType === "weather_disruption") {
       recommendedAction = {
         type: "delay",
         targetUserId: matchedTask.hero_target_user_id,
@@ -441,7 +505,9 @@ class TranscriptFallbackService {
     }
 
     const dispatcherBrief =
-      requestMode === "handover_summary"
+      requestMode === "crew_change"
+        ? `Remove ${currentAssignedName} from ${matchedTask.project_name || matchedTask.title} and send ${recommendedAction.targetUserName}. ${cascadeRisk.explanation}`
+        : requestMode === "handover_summary"
         ? `${matchedTask.project_name || matchedTask.title} needs a handover brief for the next worker. ${cascadeRisk.explanation}`
         : requestMode === "arrival_brief"
         ? `${matchedTask.project_name || matchedTask.title} is the key focus on arrival. ${cascadeRisk.explanation}`
@@ -465,12 +531,15 @@ class TranscriptFallbackService {
       confidence: Number(confidence.toFixed(2)),
       dispatcherBrief,
       problemSummary:
-        requestMode === "handover_summary"
+        requestMode === "crew_change"
+          ? `Replace ${currentAssignedName} with ${recommendedAction.targetUserName || "a new worker"} on ${matchedTask.project_name}.`
+          : requestMode === "handover_summary"
           ? `Prepare a handover for ${matchedTask.project_name}.`
           : requestMode === "arrival_brief"
           ? `Brief the arriving worker on ${matchedTask.project_name}.`
           : `Resolve disruption affecting ${matchedTask.project_name}.`,
       candidates,
+      replacementTechnician,
     };
   }
 }

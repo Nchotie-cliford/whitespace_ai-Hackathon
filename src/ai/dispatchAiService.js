@@ -74,6 +74,11 @@ class DispatchAiService {
       return `Before someone takes over ${projectLabel}, focus on the site handover and the next critical step.${riskNote}`.trim();
     }
 
+    if (requestMode === "crew_change" && recommendedAction?.targetUserName) {
+      const riskNote = residualRisk ? ` Watch-out: ${residualRisk}` : "";
+      return `Remove the current worker from ${projectLabel} and send ${recommendedAction.targetUserName} instead.${riskNote}`.trim();
+    }
+
     if (recommendedAction?.type === "reassign" && recommendedAction?.targetUserName) {
       const riskNote = residualRisk ? ` Watch-out: ${residualRisk}` : "";
       return `The best person to cover ${projectLabel} is ${recommendedAction.targetUserName}.${riskNote}`;
@@ -105,6 +110,25 @@ class DispatchAiService {
       matchedTask?.title ||
       "this job";
     const projectRef = matchedTask?.display_id ? `#${matchedTask.display_id}` : null;
+
+    if (displayMode === "crew_change") {
+      const replacementName = action.targetUserName || "the replacement worker";
+      const outgoingName =
+        result.matchedTechnician?.full_name ||
+        matchedTask?.assigned_to_name ||
+        "the current worker";
+      return {
+        headline: `Replace ${outgoingName} with ${replacementName}.`,
+        subline: "Crew change",
+        reason:
+          result.problemSummary || `Move ${outgoingName} off ${projectLabel} and send ${replacementName} instead.`,
+        risk: result.residualRisk ? `Watch-out: ${result.residualRisk}` : "",
+        primaryActionLabel: `Send ${replacementName}`,
+        helperLabel: "Recommended change",
+        riskLabel: "Watch-out",
+        meta: projectRef || projectLabel,
+      };
+    }
 
     if (displayMode === "handover_summary") {
       return {
@@ -333,6 +357,7 @@ class DispatchAiService {
       "arrival_brief",
       "daily_brief",
       "handover_summary",
+      "crew_change",
     ].includes(requestMode);
   }
 

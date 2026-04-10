@@ -7,6 +7,7 @@ const {
   testArrivalBriefGetsArrivalDisplay,
   testArrivalBriefPrefersGroundedBaselineNarrative,
   testHandoverSummaryGetsHandoverDisplay,
+  testCrewChangeGetsDedicatedDisplay,
 } = require("./dispatchAiService.test");
 
 async function testTrafficDelayRecommendation() {
@@ -42,6 +43,7 @@ async function main() {
     ["arrival brief gets arrival display", testArrivalBriefGetsArrivalDisplay],
     ["arrival brief prefers grounded baseline narrative", testArrivalBriefPrefersGroundedBaselineNarrative],
     ["handover summary gets handover display", testHandoverSummaryGetsHandoverDisplay],
+    ["crew change gets dedicated display", testCrewChangeGetsDedicatedDisplay],
   ];
 
   for (const [name, run] of tests) {

@@ -17,6 +17,7 @@ class StubDashboardService {
           is_flexible: false,
           due_date: "2026-04-10T12:00:00.000Z",
           required_skills: ["electrical", "distribution_boards"],
+          display_id: "DRS-008",
         },
       ],
       technicianWorkload: [
@@ -34,6 +35,14 @@ class StubDashboardService {
           status: "active",
           geographic_zone: "south",
           skills: ["electrical", "thermal_imaging", "testing"],
+          open_task_count: 1,
+        },
+        {
+          hero_user_id: 1014,
+          full_name: "Sarah Lenz",
+          status: "active",
+          geographic_zone: "east",
+          skills: ["electrical", "distribution_boards", "testing"],
           open_task_count: 1,
         },
       ],
@@ -365,6 +374,56 @@ class StubHandoverFallbackService {
   }
 }
 
+class StubCrewChangeFallbackService {
+  resolve() {
+    return {
+      requestMode: "crew_change",
+      incidentType: "general_disruption",
+      matchedTask: {
+        hero_task_id: 6016,
+        title: "Install replacement main switch",
+        project_name: "Dresden Mixed-Use Building Upgrade",
+        project_title: "Basement distribution board replacement",
+        customer_name: "Elbtor Gewerbehof",
+        assigned_to_name: "Jonas Schmidt",
+        hero_target_project_match_id: 5008,
+        hero_target_user_id: 1003,
+        business_value: "high",
+        is_flexible: false,
+        due_date: "2026-04-10T12:00:00.000Z",
+        display_id: "DRS-008",
+      },
+      matchedTechnician: {
+        hero_user_id: 1003,
+        full_name: "Jonas Schmidt",
+      },
+      affectedProjects: [],
+      cascadeRisk: {
+        score: 64,
+        severity: "high",
+        explanation: "This is high-value work with a close deadline.",
+      },
+      recommendedAction: {
+        type: "reassign",
+        targetUserId: 1014,
+        targetUserName: "Sarah Lenz",
+        dueDate: "2026-04-10T12:00:00.000Z",
+      },
+      residualRisk: "Sarah Lenz may need one later follow-up moved.",
+      confidence: 0.84,
+      dispatcherBrief:
+        "Remove Jonas Schmidt from Dresden Mixed-Use Building Upgrade and send Sarah Lenz.",
+      problemSummary:
+        "Replace Jonas Schmidt with Sarah Lenz on Dresden Mixed-Use Building Upgrade.",
+      candidates: [],
+      replacementTechnician: {
+        hero_user_id: 1014,
+        full_name: "Sarah Lenz",
+      },
+    };
+  }
+}
+
 async function testDailyBriefGetsDailyDisplay() {
   const service = new DispatchAiService({
     dashboardService: new StubDashboardService(),
@@ -434,10 +493,29 @@ async function testHandoverSummaryGetsHandoverDisplay() {
   assert.ok(result.problemSummary.includes("Jonas Schmidt is currently assigned"));
 }
 
+async function testCrewChangeGetsDedicatedDisplay() {
+  const service = new DispatchAiService({
+    dashboardService: new StubDashboardService(),
+    fallbackService: new StubCrewChangeFallbackService(),
+    aiClient: null,
+  });
+
+  const result = await service.resolveTranscript({
+    transcript: "Remove Jonas from the Dresden project and replace him with Sarah.",
+  });
+
+  assert.equal(result.requestMode, "crew_change");
+  assert.equal(result.display.headline, "Replace Jonas Schmidt with Sarah Lenz.");
+  assert.equal(result.display.subline, "Crew change");
+  assert.equal(result.recommendedAction.targetUserName, "Sarah Lenz");
+  assert.ok(result.spokenBrief.includes("send Sarah Lenz instead"));
+}
+
 module.exports = {
   testStrongBaselineBeatsVagueManualReview,
   testDailyBriefGetsDailyDisplay,
   testArrivalBriefGetsArrivalDisplay,
   testArrivalBriefPrefersGroundedBaselineNarrative,
   testHandoverSummaryGetsHandoverDisplay,
+  testCrewChangeGetsDedicatedDisplay,
 };

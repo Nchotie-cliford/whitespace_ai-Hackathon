@@ -38,6 +38,7 @@ class AnthropicDispatchClient {
       "Also prepare a short spoken brief for text-to-speech. It should sound natural when read aloud in a car: 1 to 2 sentences, direct, calm, and easy to understand on first listen.",
       "When possible, phrase the spoken brief like a human assistant: 'The best person to cover this is Sarah Lenz because she is the safest available fit.'",
       "If the request is broad, such as 'Max is sick this week', interpret it as a planning problem across that time window, not a single-task problem.",
+      "If the request explicitly asks to remove one worker and replace them with another, treat it as a crew change. Confirm who is being removed, who will replace them, what project or task is affected, and one watch-out.",
       "If the request asks what a replacement worker needs to know before taking over, produce a handover summary: current project, assigned worker, key note from site history, one operational watch-out, and what to do first.",
       "If the request asks what to know before arrival, produce an arrival brief: top project facts, current worker, main issue, and one watch-out.",
       "If the request asks what needs attention today, produce a daily ops brief: top priorities first, then one main risk.",
@@ -63,7 +64,7 @@ class AnthropicDispatchClient {
         confidence: 0.0,
         dispatcherBrief: "one short operator brief",
         spokenBrief: "one short spoken brief for text-to-speech",
-        displayMode: "action|planning|status|summary|arrival_brief|daily_brief|handover_summary",
+        displayMode: "action|planning|status|summary|arrival_brief|daily_brief|handover_summary|crew_change",
       }),
     ].join("\n");
 
