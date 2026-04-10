@@ -124,6 +124,7 @@ export default function CopilotClient() {
   const chunksRef       = useRef([])     // audio chunks collected during recording
   const streamRef       = useRef(null)   // getUserMedia stream (so we can stop tracks)
   const audioUnlockedRef = useRef(false)
+  const audioContextRef  = useRef(null)
 
   // ── Keep phaseRef + body attr in sync ──
   const setPhaseSync = useCallback((p) => {
@@ -188,10 +189,29 @@ export default function CopilotClient() {
       if (typeof window.AudioContext !== 'undefined') {
         const ctx = new window.AudioContext()
         await ctx.resume()
-        await ctx.close()
+        audioContextRef.current = ctx
         audioUnlockedRef.current = true
       }
     } catch (_) {}
+  }, [])
+
+  const playBufferAudio = useCallback(async (arrayBuffer) => {
+    const ctx = audioContextRef.current
+    if (!ctx) return false
+
+    try {
+      if (ctx.state === 'suspended') {
+        await ctx.resume()
+      }
+      const decoded = await ctx.decodeAudioData(arrayBuffer.slice(0))
+      const source = ctx.createBufferSource()
+      source.buffer = decoded
+      source.connect(ctx.destination)
+      source.start(0)
+      return true
+    } catch (_) {
+      return false
+    }
   }, [])
 
   const speakBrief = useCallback(async (text) => {
@@ -203,7 +223,11 @@ export default function CopilotClient() {
         body: JSON.stringify({ text, voiceId }),
       })
       if (res.ok) {
-        const blob = await res.blob()
+        const arrayBuffer = await res.arrayBuffer()
+        const bufferPlayed = await playBufferAudio(arrayBuffer)
+        if (bufferPlayed) return
+
+        const blob = new Blob([arrayBuffer])
         if (audioRef.current) audioRef.current.pause()
         audioRef.current = new Audio(URL.createObjectURL(blob))
         audioRef.current.playsInline = true
@@ -217,7 +241,7 @@ export default function CopilotClient() {
       speechSynthesis.cancel()
       speechSynthesis.speak(u)
     } catch (_) {}
-  }, [])
+  }, [playBufferAudio])
 
   const resolveTranscript = useCallback(async (text) => {
     setTranscript(text)
@@ -497,6 +521,7 @@ export default function CopilotClient() {
         open={drawerOpen}
         snapshot={snapshot}
         resolution={resolution}
+        phase={phase}
         onClose={() => setDrawerOpen(false)}
       />
     </>

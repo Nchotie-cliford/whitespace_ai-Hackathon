@@ -1,404 +1,339 @@
-﻿'use client'
+'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+
+// ── Helpers ────────────────────────────────────────────────────
 
 function formatDayLabel(value) {
   if (!value) return 'No date'
-  return new Date(value).toLocaleDateString([], {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  })
+  const d = new Date(value)
+  const today = new Date()
+  const tomorrow = new Date(today)
+  tomorrow.setDate(today.getDate() + 1)
+  if (d.toDateString() === today.toDateString()) return 'Today'
+  if (d.toDateString() === tomorrow.toDateString()) return 'Tomorrow'
+  return d.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short' })
 }
 
-function formatTimeOnly(value) {
-  if (!value) return 'Open'
-  return new Date(value).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-function formatDateTime(value) {
-  if (!value) return 'Not scheduled'
-  return new Date(value).toLocaleString([], {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-function formatTimeRange(task) {
-  const start = task?.start_at || task?.due_date
-  const end = task?.end_at
-  if (!start) return 'Time open'
-  if (!end) return formatTimeOnly(start)
-  return `${formatTimeOnly(start)} - ${formatTimeOnly(end)}`
+function formatTime(value) {
+  if (!value) return null
+  return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
 function getTaskTimestamp(task) {
   return task?.start_at || task?.due_date || task?.end_at || null
 }
 
-function getDayKey(task) {
-  const value = getTaskTimestamp(task)
-  if (!value) return 'undated'
-  return new Date(value).toISOString().slice(0, 10)
+function getProjectName(task, project) {
+  return task?.project_title || task?.project_name ||
+    project?.project_title || project?.project_name || 'Unnamed project'
 }
 
-function normalizePriority(value) {
-  const text = String(value || 'medium').toLowerCase()
-  if (text === 'high') return 'high'
-  if (text === 'low') return 'low'
-  return 'medium'
+function getCustomerName(task, project) {
+  return task?.customer_name || project?.customer_name || null
 }
 
-function buildJobMeta(task, project) {
-  const assignedPeople = project?.assigned_people?.filter(Boolean) || []
-
-  return {
-    projectName:
-      task?.project_title ||
-      task?.project_name ||
-      project?.project_title ||
-      project?.project_name ||
-      'Project not linked',
-    projectCode:
-      task?.display_id ||
-      project?.display_id ||
-      task?.project_nr ||
-      project?.project_nr ||
-      'No code',
-    customerName: task?.customer_name || project?.customer_name || 'Customer not linked',
-    assignedPeople,
-    address:
-      task?.full_address ||
-      project?.full_address ||
-      task?.city ||
-      project?.city ||
-      'Address not available',
-    projectType: project?.project_type || 'Project',
-    projectStatus: project?.status_name || 'In progress',
-    openTaskCount: project?.open_task_count || 0,
-  }
+function getAddress(task, project) {
+  return task?.full_address || project?.full_address || task?.city || project?.city || null
 }
 
-function getChangeType(task, previousTask) {
-  if (!previousTask) return 'new'
-  if (previousTask.hero_target_user_id !== task.hero_target_user_id) return 'worker'
-  if ((previousTask.start_at || previousTask.due_date) !== (task.start_at || task.due_date)) return 'time'
-  if ((previousTask.end_at || null) !== (task.end_at || null)) return 'time'
-  return null
+function getAssignedWorker(task) {
+  return task?.assigned_to_name || null
 }
 
-function getChangeLabel(changeType) {
-  if (changeType === 'worker') return 'Worker moved'
-  if (changeType === 'time') return 'Time changed'
-  if (changeType === 'new') return 'New on board'
-  return ''
-}
+// ── Skeleton ───────────────────────────────────────────────────
 
-function SkeletonColumn() {
+function Skeleton() {
   return (
-    <div className="planner-day planner-day-skeleton">
-      <div className="skeleton-line short" />
-      <div className="planner-card-stack">
-        <div className="skeleton-card">
-          <div className="skeleton-line" />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {[1, 2, 3].map(i => (
+        <div key={i} className="skeleton-card">
+          <div className="skeleton-line" style={{ width: '60%' }} />
           <div className="skeleton-line short" />
-          <div className="skeleton-line xshort" />
         </div>
-        <div className="skeleton-card">
-          <div className="skeleton-line" />
-          <div className="skeleton-line short" />
-          <div className="skeleton-line xshort" />
-        </div>
-      </div>
+      ))}
     </div>
   )
 }
 
-export default function BoardDrawer({ open, snapshot, resolution, onClose }) {
-  const tasks = snapshot?.activeTasks || []
-  const crew = snapshot?.technicianWorkload || []
+// ── Main component ─────────────────────────────────────────────
+
+export default function BoardDrawer({ open, snapshot, resolution, phase, onClose }) {
+  const tasks        = snapshot?.activeTasks    || []
   const projectSummary = snapshot?.projectSummary || []
-  const loading = snapshot === null
+  const loading      = snapshot === null
 
-  const highlightTask = resolution?.matchedTask?.hero_task_id
-  const highlightCrew = resolution?.recommendedAction?.targetUserId
-  const previousTasksRef = useRef(new Map())
+  // Invite is sent once the dispatcher confirms a reassignment
+  const inviteSent =
+    phase === 'confirmed' &&
+    resolution?.recommendedAction?.type === 'reassign'
 
-  const taskChanges = useMemo(() => {
-    const previous = previousTasksRef.current
-    const next = new Map()
-    const changes = new Map()
+  const invitedTaskId    = inviteSent ? resolution?.matchedTask?.hero_task_id : null
+  const invitedWorkerName = inviteSent ? resolution?.recommendedAction?.targetUserName : null
 
-    tasks.forEach((task) => {
-      const previousTask = previous.get(task.hero_task_id)
-      const changeType = getChangeType(task, previousTask)
-      next.set(task.hero_task_id, {
-        hero_target_user_id: task.hero_target_user_id,
-        start_at: task.start_at,
-        due_date: task.due_date,
-        end_at: task.end_at,
-      })
-      if (changeType) {
-        changes.set(task.hero_task_id, changeType)
+  // ── Group tasks into projects ────────────────────────────────
+  const projectEntries = useMemo(() => {
+    const map = new Map()
+    tasks.forEach(task => {
+      const projId = String(task.hero_target_project_match_id || 'no-project')
+      if (!map.has(projId)) {
+        const project = projectSummary.find(
+          p => Number(p.hero_project_match_id) === Number(task.hero_target_project_match_id)
+        ) || null
+        map.set(projId, { projId, project, tasks: [], earliestTime: null })
+      }
+      const entry = map.get(projId)
+      entry.tasks.push(task)
+      const t = getTaskTimestamp(task)
+      if (t && (!entry.earliestTime || new Date(t) < new Date(entry.earliestTime))) {
+        entry.earliestTime = t
       }
     })
+    return Array.from(map.values())
+  }, [tasks, projectSummary])
 
-    return { changes, next }
-  }, [tasks])
-
-  useEffect(() => {
-    previousTasksRef.current = taskChanges.next
-  }, [taskChanges])
-
-  const groupedDays = useMemo(() => {
-    const groups = tasks.reduce((acc, task) => {
-      const key = getDayKey(task)
-      if (!acc[key]) {
-        acc[key] = {
+  // ── Group projects by day ────────────────────────────────────
+  const days = useMemo(() => {
+    const groups = {}
+    projectEntries.forEach(entry => {
+      const key = entry.earliestTime
+        ? new Date(entry.earliestTime).toISOString().slice(0, 10)
+        : 'undated'
+      if (!groups[key]) {
+        groups[key] = {
           key,
-          label:
-            key === 'undated'
-              ? 'No date'
-              : formatDayLabel(getTaskTimestamp(task)),
-          tasks: [],
+          label: key === 'undated' ? 'No date set' : formatDayLabel(entry.earliestTime),
+          entries: [],
         }
       }
-      acc[key].tasks.push(task)
-      return acc
-    }, {})
-
+      groups[key].entries.push(entry)
+    })
     return Object.values(groups)
       .sort((a, b) => a.key.localeCompare(b.key))
-      .map((group) => ({
-        ...group,
-        tasks: group.tasks.sort((left, right) => {
-          const leftTime = new Date(getTaskTimestamp(left) || 0).getTime()
-          const rightTime = new Date(getTaskTimestamp(right) || 0).getTime()
-          return leftTime - rightTime
-        }),
+      .map(g => ({
+        ...g,
+        entries: g.entries.sort(
+          (a, b) => new Date(a.earliestTime || 0) - new Date(b.earliestTime || 0)
+        ),
       }))
-  }, [tasks])
+  }, [projectEntries])
 
-  const [selectedTaskId, setSelectedTaskId] = useState(null)
+  // ── Selected project ─────────────────────────────────────────
+  const [selectedProjId, setSelectedProjId] = useState(null)
 
   useEffect(() => {
     if (!open) return
-    const preferredTaskId = highlightTask || tasks[0]?.hero_task_id || null
-    setSelectedTaskId((current) => {
-      if (current && tasks.some((task) => Number(task.hero_task_id) === Number(current))) {
-        return current
-      }
-      return preferredTaskId
-    })
-  }, [open, tasks, highlightTask])
+    // Auto-select the project that just got an invite, or the first one
+    if (invitedTaskId) {
+      const t = tasks.find(t => Number(t.hero_task_id) === Number(invitedTaskId))
+      if (t) { setSelectedProjId(String(t.hero_target_project_match_id || 'no-project')); return }
+    }
+    if (projectEntries.length > 0) {
+      setSelectedProjId(cur =>
+        cur && projectEntries.some(e => e.projId === cur) ? cur : projectEntries[0].projId
+      )
+    }
+  }, [open, invitedTaskId, tasks, projectEntries])
 
-  const selectedTask =
-    tasks.find((task) => Number(task.hero_task_id) === Number(selectedTaskId)) || null
-  const selectedProject =
-    projectSummary.find(
-      (project) => Number(project.hero_project_match_id) === Number(selectedTask?.hero_target_project_match_id),
-    ) || null
-  const selectedMeta = buildJobMeta(selectedTask, selectedProject)
-  const recommendedCrewName =
-    crew.find((member) => Number(member.hero_user_id) === Number(highlightCrew))?.full_name || null
+  const selected = projectEntries.find(e => e.projId === selectedProjId) || null
+  const selectedHasInvite =
+    selected && invitedTaskId &&
+    selected.tasks.some(t => Number(t.hero_task_id) === Number(invitedTaskId))
+
+  const totalProjects = projectEntries.length
 
   return (
     <>
       <div className={`drawer-overlay ${open ? 'open' : ''}`} onClick={onClose} aria-hidden="true" />
 
-      <div className={`drawer planner-drawer ${open ? 'open' : ''}`} aria-hidden={!open} role="dialog" aria-label="Schedule board">
+      <div className={`drawer planner-drawer ${open ? 'open' : ''}`} aria-hidden={!open} role="dialog" aria-label="Schedule">
         <div className="drawer-inner planner-shell">
+
+          {/* ── Header ─────────────────────────────────────────── */}
           <div className="drawer-head planner-head">
             <div>
-              <p className="drawer-eyebrow">Dispatch planner</p>
+              <p className="drawer-eyebrow">Schedule</p>
               <h3 className="drawer-title">
-                {loading ? 'Loading...' : `${tasks.length} scheduled jobs across ${groupedDays.length || 1} day${groupedDays.length === 1 ? '' : 's'}`}
+                {loading ? 'Loading…' : totalProjects === 0 ? 'No jobs scheduled' : `${totalProjects} job${totalProjects === 1 ? '' : 's'} on the board`}
               </h3>
             </div>
             <div className="planner-head-actions">
-              <span className="planner-status-pill">Live updates</span>
-              <button className="close-btn planner-close" onClick={onClose} aria-label="Close">
-                &#x2715;
-              </button>
+              <button className="close-btn" onClick={onClose} aria-label="Close">&#x2715;</button>
             </div>
           </div>
 
+          {/* ── Body ───────────────────────────────────────────── */}
           <div className="planner-layout">
+
+            {/* Left: project list by day */}
             <section className="planner-board">
-              <div className="section-topline planner-topline">
-                <div className="col-label">Calendar view</div>
-                <div className="section-note">Project cards update when timing or assignments change.</div>
-              </div>
+              {loading ? (
+                <Skeleton />
+              ) : days.length === 0 ? (
+                <p className="detail-empty" style={{ padding: '24px 0' }}>No scheduled jobs found.</p>
+              ) : (
+                days.map(day => (
+                  <div key={day.key} className="sched-day">
+                    <div className="sched-day-label">{day.label}</div>
 
-              <div className="planner-grid">
-                {loading
-                  ? [1, 2, 3].map((i) => <SkeletonColumn key={i} />)
-                  : groupedDays.map((group) => (
-                      <section key={group.key} className="planner-day">
-                        <header className="planner-day-head">
-                          <div>
-                            <div className="planner-day-label">{group.label}</div>
-                            <div className="planner-day-subtitle">{group.tasks.length} projects in motion</div>
-                          </div>
-                        </header>
+                    <div className="planner-card-stack">
+                      {day.entries.map(entry => {
+                        const { projId, project, tasks: et, earliestTime } = entry
+                        const isActive = projId === selectedProjId
+                        const hasInvite =
+                          invitedTaskId &&
+                          et.some(t => Number(t.hero_task_id) === Number(invitedTaskId))
+                        const worker = getAssignedWorker(et[0])
+                        const projectName = getProjectName(et[0], project)
+                        const customerName = getCustomerName(et[0], project)
 
-                        <div className="planner-card-stack">
-                          {group.tasks.map((task) => {
-                            const isActive = Number(task.hero_task_id) === Number(selectedTaskId)
-                            const isHighlighted = Number(task.hero_task_id) === Number(highlightTask)
-                            const changeType = taskChanges.changes.get(task.hero_task_id)
-                            const project = projectSummary.find(
-                              (entry) => Number(entry.hero_project_match_id) === Number(task.hero_target_project_match_id),
-                            )
-                            const meta = buildJobMeta(task, project)
-                            const priority = normalizePriority(task.business_value)
+                        return (
+                          <button
+                            key={projId}
+                            type="button"
+                            className={`sched-card ${isActive ? 'sched-card-active' : ''} ${hasInvite ? 'sched-card-pending' : ''}`}
+                            onClick={() => setSelectedProjId(projId)}
+                          >
+                            {/* Pending invite banner */}
+                            {hasInvite && (
+                              <div className="sched-invite-banner">
+                                <span className="pending-dot" />
+                                Waiting for confirmation
+                              </div>
+                            )}
 
-                            return (
-                              <button
-                                key={task.hero_task_id || task.id}
-                                type="button"
-                                className={`planner-card priority-${priority} ${isActive ? 'active' : ''} ${isHighlighted ? 'highlight' : ''} ${changeType ? 'changed' : ''}`}
-                                onClick={() => setSelectedTaskId(task.hero_task_id)}
-                              >
-                                <div className="planner-card-frame" />
-                                <div className="planner-card-top">
-                                  <span className="planner-time-pill">{formatTimeRange(task)}</span>
-                                  {changeType ? <span className="planner-change-pill">{getChangeLabel(changeType)}</span> : null}
-                                </div>
-
-                                <div className="planner-card-title">{meta.projectName}</div>
-                                <div className="planner-card-subtitle">{task.title}</div>
-
-                                <div className="planner-card-meta">
-                                  <span>{task.assigned_to_name || 'Unassigned'}</span>
-                                  <span>{meta.projectCode}</span>
-                                </div>
-
-                                <div className="planner-card-footer">
-                                  <span>{meta.customerName}</span>
-                                  <span>{task.city || 'No city'}</span>
-                                </div>
-                              </button>
-                            )
-                          })}
-                        </div>
-                      </section>
-                    ))}
-              </div>
+                            <div className="sched-card-name">{projectName}</div>
+                            {customerName && (
+                              <div className="sched-card-customer">{customerName}</div>
+                            )}
+                            <div className="sched-card-footer">
+                              <span className="sched-card-worker">
+                                {worker || 'No one assigned'}
+                              </span>
+                              {earliestTime && (
+                                <span className="sched-card-time">{formatTime(earliestTime)}</span>
+                              )}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))
+              )}
             </section>
 
+            {/* Right: project detail */}
             <aside className="planner-detail-panel">
-              <div className="section-topline planner-topline">
-                <div className="col-label">Project detail</div>
-                {selectedTask ? <div className="section-note">{selectedMeta.projectCode}</div> : null}
-              </div>
-
               {loading ? (
-                <SkeletonColumn />
-              ) : selectedTask ? (
-                <div className="planner-detail-card">
-                  <div className="planner-detail-header">
-                    <div>
-                      <h4 className="planner-detail-title">{selectedMeta.projectName}</h4>
-                      <p className="planner-detail-subtitle">{selectedTask.title}</p>
-                    </div>
-                    <span className={`planner-priority-chip ${normalizePriority(selectedTask.business_value)}`}>
-                      {normalizePriority(selectedTask.business_value)} priority
-                    </span>
-                  </div>
-
-                  <div className="planner-detail-grid">
-                    <div className="planner-detail-block">
-                      <span className="detail-label">Timeframe</span>
-                      <span className="detail-value">{formatDateTime(selectedTask.start_at || selectedTask.due_date)}</span>
-                      <span className="detail-muted">
-                        {selectedTask.end_at ? `Ends ${formatTimeOnly(selectedTask.end_at)}` : 'End time not fixed'}
-                      </span>
-                    </div>
-
-                    <div className="planner-detail-block">
-                      <span className="detail-label">Assigned now</span>
-                      <span className="detail-value">{selectedTask.assigned_to_name || 'Not assigned yet'}</span>
-                      <span className="detail-muted">{selectedMeta.projectStatus}</span>
-                    </div>
-
-                    <div className="planner-detail-block planner-detail-block-wide">
-                      <span className="detail-label">Site</span>
-                      <span className="detail-value">{selectedMeta.customerName}</span>
-                      <span className="detail-muted">{selectedMeta.address}</span>
-                    </div>
-                  </div>
-
-                  <div className="planner-detail-stack">
-                    <div className="planner-detail-section">
-                      <div className="planner-detail-section-title">Project team</div>
-                      <div className="planner-assignee-list">
-                        {selectedMeta.assignedPeople.length ? (
-                          selectedMeta.assignedPeople.map((person) => (
-                            <span
-                              key={person}
-                              className={`planner-assignee-chip ${person === selectedTask.assigned_to_name ? 'active' : ''} ${recommendedCrewName && person === recommendedCrewName ? 'recommended' : ''}`}
-                            >
-                              {person}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="detail-empty">No team assigned yet.</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="planner-detail-section">
-                      <div className="planner-detail-section-title">Required skills</div>
-                      <div className="planner-skill-list">
-                        {(selectedTask.required_skills || []).length ? (
-                          selectedTask.required_skills.map((skill) => (
-                            <span key={skill} className="planner-skill-chip">{skill}</span>
-                          ))
-                        ) : (
-                          <span className="detail-empty">No required skills listed.</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="planner-detail-section">
-                      <div className="planner-detail-section-title">Crew availability</div>
-                      <div className="planner-crew-table">
-                        {crew.slice(0, 6).map((member) => {
-                          const isRecommended = Number(member.hero_user_id) === Number(highlightCrew)
-                          const isAssigned = member.full_name === selectedTask.assigned_to_name
-                          return (
-                            <div key={member.hero_user_id} className={`planner-crew-row ${isRecommended ? 'recommended' : ''} ${isAssigned ? 'assigned' : ''}`}>
-                              <div>
-                                <div className="planner-crew-name">{member.full_name}</div>
-                                <div className="planner-crew-zone">{member.geographic_zone || 'Zone not set'}</div>
-                              </div>
-                              <div className="planner-crew-load">{member.open_task_count} active</div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <Skeleton />
+              ) : selected ? (
+                <ProjectDetail
+                  entry={selected}
+                  hasInvite={selectedHasInvite}
+                  invitedWorkerName={invitedWorkerName}
+                  invitedTaskId={invitedTaskId}
+                />
               ) : (
-                <div className="empty-detail-card planner-empty-state">
-                  <p className="empty-detail-title">Pick a project card to inspect it.</p>
-                  <p className="empty-detail-copy">
-                    You will see the project timeframe, current worker, linked site, and the rest of the crew on that project.
-                  </p>
+                <div className="planner-empty-state">
+                  <p className="empty-detail-title">Tap a job to see the details.</p>
                 </div>
               )}
             </aside>
+
           </div>
         </div>
       </div>
     </>
+  )
+}
+
+// ── Project detail panel ───────────────────────────────────────
+
+function ProjectDetail({ entry, hasInvite, invitedWorkerName, invitedTaskId }) {
+  const { project, tasks, earliestTime } = entry
+  const firstTask = tasks[0]
+
+  const projectName  = getProjectName(firstTask, project)
+  const customerName = getCustomerName(firstTask, project)
+  const address      = getAddress(firstTask, project)
+  const status       = project?.status_name || 'In progress'
+
+  return (
+    <div className="planner-detail-card">
+
+      {/* Waiting-for-confirmation notice */}
+      {hasInvite && (
+        <div className="sched-confirmation-notice">
+          <div className="sched-notice-icon">
+            <span className="pending-dot pending-dot-lg" />
+          </div>
+          <div>
+            <div className="sched-notice-title">Waiting for confirmation</div>
+            <div className="sched-notice-body">
+              {invitedWorkerName
+                ? `${invitedWorkerName} has been sent an invite and hasn't confirmed yet.`
+                : 'An invite has been sent. Waiting for the worker to confirm.'}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Project name */}
+      <div className="sched-detail-name">{projectName}</div>
+      {customerName && <div className="sched-detail-customer">{customerName}</div>}
+
+      {/* Key facts */}
+      <div className="sched-facts">
+        {earliestTime && (
+          <div className="sched-fact">
+            <span className="sched-fact-label">When</span>
+            <span className="sched-fact-value">
+              {new Date(earliestTime).toLocaleDateString([], {
+                weekday: 'short', day: 'numeric', month: 'short',
+              })}{' '}at {formatTime(earliestTime)}
+            </span>
+          </div>
+        )}
+        {address && (
+          <div className="sched-fact">
+            <span className="sched-fact-label">Where</span>
+            <span className="sched-fact-value">{address}</span>
+          </div>
+        )}
+        <div className="sched-fact">
+          <span className="sched-fact-label">Status</span>
+          <span className="sched-fact-value">{status}</span>
+        </div>
+      </div>
+
+      {/* Tasks */}
+      <div className="sched-section-label">
+        Tasks <span className="section-count">{tasks.length}</span>
+      </div>
+      <div className="planner-task-list">
+        {tasks.map(task => {
+          const isInvited = invitedTaskId && Number(task.hero_task_id) === Number(invitedTaskId)
+          const time = formatTime(getTaskTimestamp(task))
+          return (
+            <div key={task.hero_task_id} className={`planner-task-row ${isInvited ? 'task-highlighted' : ''}`}>
+              <div className="planner-task-row-left">
+                <div>
+                  <div className="planner-task-title">{task.title || 'Untitled'}</div>
+                  {time && <div className="planner-task-time">{time}</div>}
+                </div>
+              </div>
+              <div className="planner-task-row-right">
+                {isInvited && invitedWorkerName
+                  ? <span className="planner-pending-tag"><span className="pending-dot" />{invitedWorkerName}</span>
+                  : <span className="planner-task-worker">{task.assigned_to_name || 'Unassigned'}</span>
+                }
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+    </div>
   )
 }

@@ -36,7 +36,7 @@ body[data-theme="light"] {
   --border: rgba(18, 19, 31, 0.08);
   --border-strong: rgba(18, 19, 31, 0.14);
   --text: #171827;
-  --muted: rgba(23, 24, 39, 0.58);
+  --muted: rgba(23, 24, 39, 0.72);
   --blue-glow: rgba(45, 124, 255, 0.16);
   --blue-ring: rgba(45, 124, 255, 0.1);
   --hero-yellow-glow: rgba(246, 201, 69, 0.24);
@@ -276,13 +276,14 @@ body[data-phase="ready"] .orb,
 body[data-phase="confirmed"] .orb {
   background:
     radial-gradient(circle at 35% 28%, rgba(255,255,255,0.2), transparent 52%),
-    linear-gradient(148deg, #22eaa4 0%, #00a870 100%);
-  box-shadow: 0 0 0 20px var(--green-ring), 0 32px 72px var(--green-glow);
+    linear-gradient(148deg, #ffd964 0%, var(--hero-yellow) 100%);
+  color: #111111;
+  box-shadow: 0 0 0 20px var(--hero-yellow-ring), 0 32px 72px var(--hero-yellow-glow);
   animation: orb-float 4.5s ease-in-out infinite;
 }
 
 body[data-phase="ready"] .orb-rings span,
-body[data-phase="confirmed"] .orb-rings span { border-color: var(--green-ring); }
+body[data-phase="confirmed"] .orb-rings span { border-color: var(--hero-yellow-ring); }
 
 body[data-phase="error"] .orb {
   background:
@@ -337,7 +338,7 @@ body[data-phase="processing"] .wave-zone span {
 body[data-phase="listening"] .stage-hint { color: var(--red); }
 body[data-phase="processing"] .stage-hint { color: var(--amber); }
 body[data-phase="ready"] .stage-hint,
-body[data-phase="confirmed"] .stage-hint { color: var(--green); }
+body[data-phase="confirmed"] .stage-hint { color: var(--hero-yellow); }
 body[data-phase="error"] .stage-hint { color: var(--red); }
 
 .live-transcript {
@@ -740,6 +741,37 @@ body[data-theme="light"] .drawer {
 
 body[data-theme="light"] .sheet {
   box-shadow: 0 -22px 60px rgba(18, 19, 31, 0.12);
+}
+
+body[data-theme="light"] .mode-badge.ai {
+  color: #215dca;
+  border-color: rgba(45, 124, 255, 0.2);
+}
+
+body[data-theme="light"] .decision-block {
+  background: rgba(23, 24, 39, 0.03);
+}
+
+body[data-theme="light"] .decision-block-muted {
+  background: rgba(23, 24, 39, 0.045);
+}
+
+body[data-theme="light"] .decision-label {
+  color: rgba(23, 24, 39, 0.6);
+}
+
+body[data-theme="light"] .decision-residual {
+  color: rgba(23, 24, 39, 0.8);
+}
+
+body[data-theme="light"] .stage-hint,
+body[data-theme="light"] .live-transcript,
+body[data-theme="light"] .decision-subline,
+body[data-theme="light"] .alt-text,
+body[data-theme="light"] .hero-confirm-ref,
+body[data-theme="light"] .secondary-btn,
+body[data-theme="light"] .theme-btn {
+  color: rgba(23, 24, 39, 0.76);
 }
 
 .drawer-inner {
@@ -1184,6 +1216,328 @@ body[data-theme="light"] .sheet {
   min-height: 220px;
   display: grid;
   align-content: center;
+}
+
+/* ── Simple schedule cards ──────────────────────────────── */
+.sched-day {
+  margin-bottom: 28px;
+}
+
+.sched-day-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(18, 19, 31, 0.38);
+  margin-bottom: 10px;
+}
+
+.sched-card {
+  width: 100%;
+  text-align: left;
+  background: #ffffff;
+  border: 1.5px solid rgba(18, 19, 31, 0.07);
+  border-radius: 16px;
+  padding: 14px 15px;
+  cursor: pointer;
+  transition: border-color 0.18s, box-shadow 0.18s, transform 0.15s;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.sched-card:hover {
+  border-color: rgba(18, 19, 31, 0.14);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(18, 19, 31, 0.07);
+}
+
+.sched-card-active {
+  border-color: #2d7cff !important;
+  box-shadow: 0 0 0 3px rgba(45, 124, 255, 0.1);
+}
+
+.sched-card-pending {
+  border-color: rgba(246, 201, 69, 0.5) !important;
+  box-shadow: 0 0 0 3px rgba(246, 201, 69, 0.12);
+}
+
+.sched-invite-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #9a6e00;
+  background: rgba(246, 201, 69, 0.14);
+  border: 1px solid rgba(246, 201, 69, 0.35);
+  border-radius: 999px;
+  padding: 3px 9px 3px 6px;
+  margin-bottom: 9px;
+}
+
+.sched-card-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #171827;
+  margin-bottom: 3px;
+  line-height: 1.3;
+}
+
+.sched-card-customer {
+  font-size: 0.8rem;
+  color: rgba(18, 19, 31, 0.52);
+  margin-bottom: 10px;
+}
+
+.sched-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sched-card-worker {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(18, 19, 31, 0.65);
+}
+
+.sched-card-time {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: rgba(18, 19, 31, 0.42);
+}
+
+/* ── Confirmation notice in detail panel ────────────────── */
+.sched-confirmation-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: rgba(246, 201, 69, 0.1);
+  border: 1.5px solid rgba(246, 201, 69, 0.35);
+  border-radius: 14px;
+  padding: 14px 15px;
+  margin-bottom: 20px;
+}
+
+.sched-notice-icon {
+  display: flex;
+  align-items: center;
+  padding-top: 2px;
+}
+
+.sched-notice-title {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #7a5200;
+  margin-bottom: 3px;
+}
+
+.sched-notice-body {
+  font-size: 0.8rem;
+  color: #9a6e00;
+  line-height: 1.5;
+}
+
+.pending-dot-lg {
+  width: 10px;
+  height: 10px;
+}
+
+/* ── Detail panel typography ────────────────────────────── */
+.sched-detail-name {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #171827;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  margin-bottom: 4px;
+}
+
+.sched-detail-customer {
+  font-size: 0.85rem;
+  color: rgba(18, 19, 31, 0.52);
+  margin-bottom: 18px;
+}
+
+.sched-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.sched-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sched-fact-label {
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(18, 19, 31, 0.38);
+}
+
+.sched-fact-value {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #171827;
+}
+
+.sched-section-label {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(18, 19, 31, 0.38);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Waiting-for-confirmation tag ───────────────────────── */
+.planner-pending-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 3px 8px 3px 5px;
+  border-radius: 999px;
+  background: rgba(246, 201, 69, 0.13);
+  border: 1px solid rgba(246, 201, 69, 0.36);
+  color: #a07300;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.pending-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f6c945;
+  animation: dot-pulse 1.8s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.planner-pending-tag-lg {
+  font-size: 0.72rem;
+  padding: 4px 11px 4px 8px;
+}
+
+/* Card pending state */
+.planner-card.is-pending {
+  box-shadow: 0 0 0 2px rgba(246, 201, 69, 0.3);
+}
+
+/* ── Detail badge row ───────────────────────────────────── */
+.planner-detail-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ── Task list inside detail panel ─────────────────────── */
+.planner-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.planner-task-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  background: #ffffff;
+  border: 1px solid rgba(18, 19, 31, 0.06);
+  border-radius: 12px;
+  transition: border-color 0.18s;
+}
+
+.planner-task-row.task-highlighted {
+  border-color: rgba(246, 201, 69, 0.4);
+  background: rgba(246, 201, 69, 0.04);
+}
+
+.planner-task-row-left {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.planner-task-row-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.task-priority-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.task-priority-dot.priority-dot-high   { background: #ff7a59; }
+.task-priority-dot.priority-dot-medium { background: #2d7cff; }
+.task-priority-dot.priority-dot-low    { background: #00b277; }
+
+.planner-task-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #171827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+.planner-task-time {
+  font-size: 0.72rem;
+  color: rgba(18, 19, 31, 0.5);
+  margin-top: 1px;
+}
+
+.planner-task-worker {
+  font-size: 0.76rem;
+  color: rgba(18, 19, 31, 0.56);
+}
+
+.planner-recommended-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #2d7cff;
+  letter-spacing: 0.01em;
+}
+
+/* ── Section count badge ────────────────────────────────── */
+.section-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(18, 19, 31, 0.07);
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: rgba(18, 19, 31, 0.52);
+  margin-left: 6px;
 }
 
 .skeleton-card {
